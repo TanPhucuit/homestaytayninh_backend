@@ -11,6 +11,7 @@ export interface AuthenticatedUser {
   phone?: string;
   role: UserRole;
   banned: boolean;
+  authLinked?: boolean;
 }
 
 export interface Homestay {

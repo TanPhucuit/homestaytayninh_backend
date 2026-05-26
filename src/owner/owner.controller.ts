@@ -144,7 +144,7 @@ export class OwnerController {
   @Roles("OWNER_STAFF", "ADMIN")
   async updateStatus(@Req() req: Request, @Param("id") bookingId: string, @Body() body: { status: BookingStatus }) {
     await this.store.assertCanAccessBooking(req.user!, bookingId);
-    const booking = await this.store.updateBookingStatus(bookingId, body.status, req.user!.id);
+    const booking = await this.store.updateBookingStatus(bookingId, body.status, req.user!.id, req.user!.role);
     await this.events.publish("booking.status_changed", { bookingId, status: booking.status });
     return booking;
   }
@@ -153,9 +153,10 @@ export class OwnerController {
   @Roles("OWNER_STAFF", "ADMIN")
   async proxyBooking(@Req() req: Request, @Body() body: Record<string, unknown>) {
     await this.store.assertCanOperateHomestay(req.user!, String(body.homestayId ?? ""));
+    const customerId = await this.store.resolveBookingCustomer(body);
     const booking = await this.store.createBooking({
       ...body,
-      customerId: String(body.customerId ?? "u-customer"),
+      customerId,
       proxyCreatedBy: req.user!.id
     });
     await this.events.publish("booking.created", { bookingId: booking.id, status: booking.status, proxyCreatedBy: booking.proxyCreatedBy });

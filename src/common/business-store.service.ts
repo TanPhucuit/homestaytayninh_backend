@@ -353,18 +353,23 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
 
   async createBooking(input: BookingInput): Promise<Booking> {
     if (!input.homestayId) throw new BadRequestException("Homestay is required");
+    if (!input.customerId) throw new BadRequestException("Customer is required");
     const homestay = await this.prisma.homestay.findUnique({
       where: { id: String(input.homestayId) },
-      include: { rooms: true, services: true }
+      include: { rooms: { include: { rates: true } }, services: true }
     });
     if (!homestay) throw new NotFoundException("Homestay not found");
-    const room = homestay.rooms.find((item) => item.id === input.roomId) ?? homestay.rooms[0];
-    if (!room?.active) throw new BadRequestException("No active room is available");
+    if (!input.roomId) throw new BadRequestException("Room is required");
+    const room = homestay.rooms.find((item) => item.id === input.roomId);
+    if (!room) throw new BadRequestException("Room does not belong to this homestay");
+    if (!room.active) throw new BadRequestException("Room is not available for booking");
     const guestCount = Number(input.guestCount ?? 1);
     if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > room.capacity) {
       throw new BadRequestException("Guest count exceeds room capacity");
     }
     const nights = this.nights(String(input.checkIn), String(input.checkOut));
+    const checkIn = new Date(String(input.checkIn));
+    const checkOut = new Date(String(input.checkOut));
     const items = input.serviceItems ?? [];
     const addOns = items.map((item) => {
       const service = homestay.services.find((candidate) => candidate.id === item.serviceId && !candidate.included && candidate.active);
@@ -372,11 +377,12 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
       this.positive(item.quantity, "quantity");
       return { service, quantity: item.quantity, total: service.unitPrice * item.quantity };
     });
-    const roomTotal = room.pricePerNight * nights;
     const serviceTotal = addOns.reduce((total, item) => total + item.total, 0);
+    const nightlyRate = this.priceForStay(room.pricePerNight, room.rates, checkIn, checkOut);
+    const roomTotal = nightlyRate * nights;
+    const taxTotal = Math.round((roomTotal + serviceTotal) * 0.1);
+    const grandTotal = roomTotal + serviceTotal + taxTotal;
     const bookingId = this.id("bk");
-    const checkIn = new Date(String(input.checkIn));
-    const checkOut = new Date(String(input.checkOut));
     const row = await this.prisma.$transaction(
       async (tx) => {
         const reserved = await tx.booking.count({
@@ -393,7 +399,7 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
         return tx.booking.create({
           data: {
             id: bookingId,
-            customerId: String(input.customerId ?? "u-customer"),
+            customerId: String(input.customerId),
             homestayId: homestay.id,
             roomId: room.id,
             guestName: String(input.guestName ?? "Khách hàng"),
@@ -403,8 +409,8 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
             checkOut,
             roomTotal,
             serviceTotal,
-            taxTotal: 0,
-            grandTotal: roomTotal + serviceTotal,
+            taxTotal,
+            grandTotal,
             proxyCreatedBy: input.proxyCreatedBy,
             services: {
               create: addOns.map(({ service, quantity, total }) => ({
@@ -420,7 +426,7 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
           include: { services: true, payment: true }
         }).then(async (booking) => {
           await tx.auditLog.create({
-            data: { actorId: input.proxyCreatedBy ?? String(input.customerId ?? "u-customer"), action: "BOOKING_CREATED", entity: "Booking", entityId: booking.id }
+            data: { actorId: input.proxyCreatedBy ?? String(input.customerId), action: "BOOKING_CREATED", entity: "Booking", entityId: booking.id }
           });
           return booking;
         });
@@ -428,6 +434,26 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
       { isolationLevel: "Serializable" }
     );
     return this.mapBooking(row);
+  }
+
+  async resolveBookingCustomer(input: { customerId?: unknown; guestName?: unknown; guestPhone?: unknown }) {
+    const explicitId = String(input.customerId ?? "").trim();
+    if (explicitId) {
+      const existing = await this.prisma.userProfile.findUnique({ where: { id: explicitId } });
+      if (!existing) throw new NotFoundException("Selected customer profile not found");
+      return existing.id;
+    }
+    const phone = String(input.guestPhone ?? "").trim();
+    const name = String(input.guestName ?? "Khách đặt trực tiếp").trim() || "Khách đặt trực tiếp";
+    if (!phone) throw new BadRequestException("Guest phone is required when customerId is not provided");
+    const existingByPhone = await this.prisma.userProfile.findFirst({ where: { phone, role: "CUSTOMER" } });
+    if (existingByPhone) return existingByPhone.id;
+    const digits = phone.replace(/\D/g, "").slice(-12) || randomUUID();
+    const email = `guest-${digits}-${Date.now()}@guest.local`;
+    const profile = await this.prisma.userProfile.create({
+      data: { id: this.id("u"), name, email, phone, role: "CUSTOMER" }
+    });
+    return profile.id;
   }
 
   async addServiceToBooking(bookingId: string, serviceId: string, quantity = 1, actorId?: string): Promise<Booking> {
@@ -441,25 +467,31 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
       const service = await tx.service.findFirst({ where: { id: serviceId, homestayId: booking.homestayId, included: false, active: true } });
       if (!service) throw new NotFoundException("Service not found");
       const total = service.unitPrice * quantity;
+      const nextServiceTotal = booking.serviceTotal + total;
+      const nextTaxTotal = Math.round((booking.roomTotal + nextServiceTotal) * 0.1);
+      const nextGrandTotal = booking.roomTotal + nextServiceTotal + nextTaxTotal;
       await tx.bookingService.create({
         data: { id: this.id("bs"), bookingId, serviceId, name: service.name, quantity, unitPrice: service.unitPrice, total }
       });
-      await tx.payment.updateMany({ where: { bookingId }, data: { amount: { increment: total } } });
+      await tx.payment.updateMany({ where: { bookingId }, data: { amount: nextGrandTotal } });
       await tx.auditLog.create({
         data: { actorId, action: "SERVICE_ORDER_CREATED", entity: "Booking", entityId: bookingId, metadata: { serviceId, quantity, total } }
       });
       return tx.booking.update({
         where: { id: bookingId },
-        data: { serviceTotal: { increment: total }, grandTotal: { increment: total } },
+        data: { serviceTotal: nextServiceTotal, taxTotal: nextTaxTotal, grandTotal: nextGrandTotal },
         include: { services: true, payment: true }
       });
     });
     return this.mapBooking(result);
   }
 
-  async updateBookingStatus(bookingId: string, status: BookingStatus, actorId?: string): Promise<Booking> {
+  async updateBookingStatus(bookingId: string, status: BookingStatus, actorId?: string, actorRole?: UserRole): Promise<Booking> {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) throw new NotFoundException("Booking not found");
+    if (actorRole === "CUSTOMER" && (status !== "CANCELLED" || !["PENDING", "CONFIRMED"].includes(booking.status))) {
+      throw new ForbiddenException("Customer can only cancel pending or confirmed bookings");
+    }
     const allowed: Record<BookingStatus, BookingStatus[]> = {
       PENDING: ["CONFIRMED", "CANCELLED"],
       CONFIRMED: ["IN_STAY", "CANCELLED"],
@@ -550,20 +582,39 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
     if (actor.role !== "ADMIN" && target.role === "ADMIN") {
       throw new ForbiddenException("Staff cannot moderate administrator accounts");
     }
+    if (target.role === "ADMIN" && banned) {
+      const activeAdmins = await this.prisma.userProfile.count({ where: { role: "ADMIN", banned: false } });
+      if (activeAdmins <= 1) throw new ForbiddenException("Cannot ban the last active administrator");
+    }
     return this.banUser(userId, banned);
   }
 
-  async setRole(userId: string, role: UserRole) {
+  async setRole(userId: string, role: UserRole, actor?: AuthenticatedUser) {
     this.validRole(role);
-    try {
-      return this.mapUser(await this.prisma.userProfile.update({ where: { id: userId }, data: { role } }));
-    } catch {
-      throw new NotFoundException("User not found");
+    const target = await this.prisma.userProfile.findUnique({ where: { id: userId } });
+    if (!target) throw new NotFoundException("User not found");
+    if (target.role === "ADMIN" && role !== "ADMIN") {
+      const activeAdmins = await this.prisma.userProfile.count({ where: { role: "ADMIN", banned: false } });
+      if (activeAdmins <= 1) throw new ForbiddenException("Cannot demote the last active administrator");
     }
+    if (actor?.id === userId && role !== "ADMIN") {
+      throw new ForbiddenException("Administrators cannot demote their own account");
+    }
+    return this.mapUser(await this.prisma.userProfile.update({ where: { id: userId }, data: { role } }));
   }
 
   async articles(): Promise<Article[]> {
     return (await this.prisma.article.findMany({ orderBy: { createdAt: "desc" } })).map((article) => ({ ...article }));
+  }
+
+  async publishedArticles(): Promise<Article[]> {
+    return (await this.prisma.article.findMany({ where: { status: "PUBLISHED" }, orderBy: { createdAt: "desc" } })).map((article) => ({ ...article }));
+  }
+
+  async publishedArticle(slug: string): Promise<Article> {
+    const article = await this.prisma.article.findFirst({ where: { slug, status: "PUBLISHED" } });
+    if (!article) throw new NotFoundException("Article not found");
+    return article;
   }
 
   async createArticle(input: Partial<Article>) {
@@ -648,7 +699,7 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
   }
 
   private mapUser(row: any): AuthenticatedUser {
-    return { id: row.id, name: row.name, email: row.email, phone: row.phone ?? undefined, role: row.role, banned: row.banned };
+    return { id: row.id, name: row.name, email: row.email, phone: row.phone ?? undefined, role: row.role, banned: row.banned, authLinked: Boolean(row.authId) };
   }
 
   private validRole(role: UserRole) {
@@ -690,6 +741,11 @@ export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
       throw new BadRequestException("Check-out must be after check-in");
     }
     return Math.ceil((end - start) / 86_400_000);
+  }
+
+  private priceForStay(defaultPrice: number, rates: Array<{ startDate: Date; endDate: Date; pricePerNight: number }>, checkIn: Date, checkOut: Date) {
+    const matchingRate = rates.find((rate) => rate.startDate <= checkIn && rate.endDate >= checkOut);
+    return matchingRate?.pricePerNight ?? defaultPrice;
   }
 
   private id(prefix: string) {

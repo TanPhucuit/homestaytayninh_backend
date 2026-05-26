@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
-import { Roles } from "../common/auth.decorator";
+import { Public, Roles } from "../common/auth.decorator";
 import { SupabaseAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { ArticleStatus } from "../common/domain";
@@ -14,6 +14,18 @@ export class CmsController {
   @Roles("STAFF", "ADMIN")
   async list() {
     return this.store.articles();
+  }
+
+  @Get("public")
+  @Public()
+  async publicList() {
+    return this.store.publishedArticles();
+  }
+
+  @Get("public/:slug")
+  @Public()
+  async publicDetail(@Param("slug") slug: string) {
+    return this.store.publishedArticle(slug);
   }
 
   @Post()

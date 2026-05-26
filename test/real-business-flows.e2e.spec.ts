@@ -152,6 +152,10 @@ describe("real Supabase business flows", () => {
       }
     });
     expect(booking.status).toBe(201);
+    expect(Number((booking.body as Json).taxTotal)).toBeGreaterThan(0);
+    expect(Number((booking.body as Json).grandTotal)).toBe(
+      Number((booking.body as Json).roomTotal) + Number((booking.body as Json).serviceTotal) + Number((booking.body as Json).taxTotal)
+    );
     for (const status of ["CONFIRMED", "IN_STAY"] as const) {
       const changed = await api<{ status: string }>(`/api/owner/bookings/${booking.body.id}/status`, tokens.get("OWNER_STAFF")!, {
         method: "PATCH",
@@ -174,5 +178,12 @@ describe("real Supabase business flows", () => {
     expect((await api(`/api/cms/articles/${article.body.id}/publish`, tokens.get("STAFF")!, { method: "POST" })).status).toBe(201);
     expect((await api(`/api/cms/articles/${article.body.id}`, tokens.get("STAFF")!, { method: "DELETE" })).status).toBe(200);
     expect((await api(`/api/admin/reports/${env("TEST_OPEN_REPORT_ID")}/resolve`, tokens.get("STAFF")!, { method: "POST" })).status).toBe(201);
+  });
+
+  it("filters catalog by amenity and rejects invalid date ranges", async () => {
+    const ok = await fetch(`${apiUrl}/api/homestays?guests=1&amenity=Wifi`);
+    expect(ok.status).toBe(200);
+    const invalid = await fetch(`${apiUrl}/api/homestays?checkIn=2030-07-03&checkOut=2030-07-01`);
+    expect(invalid.status).toBe(400);
   });
 });
