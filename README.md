@@ -124,7 +124,7 @@ Staff / Admin:
 
 Redis keys are namespaced by entity, for example `user:<id>`, `homestay:<id>`, `booking:<id>`, `session:<token>` and index sets such as `idx:homestays`, `idx:bookings`, `idx:users`.
 
-Demo presentation data is seeded automatically in non-production when Redis is empty. In production, demo seeding only runs with `REDIS_SEED_DEMO=true`. There is no in-memory fallback.
+Demo presentation data is upserted automatically into Redis on startup while `REDIS_AUTO_SEED` is not `false`. There is no in-memory fallback.
 
 ## Integration Tests
 

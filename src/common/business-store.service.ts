@@ -1014,7 +1014,6 @@ export class BusinessStoreService implements OnModuleInit {
 
   private shouldSeedDemoData() {
     if (process.env.REDIS_AUTO_SEED === "false") return false;
-    if (process.env.NODE_ENV === "production") return process.env.REDIS_SEED_DEMO === "true";
     return true;
   }
 
