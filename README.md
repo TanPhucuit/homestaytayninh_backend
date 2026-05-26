@@ -113,6 +113,14 @@ npm run prisma:migrate
 npm run seed
 ```
 
+Production demo data used by the Stitch-aligned UI can be reapplied safely with:
+
+```bash
+psql "$DATABASE_URL" -f prisma/production_demo_seed.sql
+```
+
+The script is idempotent and upserts demo catalog, services, booking states, payments and CMS articles without deleting existing data.
+
 Applied Supabase migrations:
 
 - `prisma/migrations/20260526103000_homestay_mvp_schema/migration.sql`
