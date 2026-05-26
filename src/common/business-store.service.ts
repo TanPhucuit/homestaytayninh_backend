@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
@@ -8,8 +8,9 @@ import { DemoStoreService } from "./demo-store.service";
 type BookingInput = Partial<Booking> & { serviceItems?: Array<{ serviceId: string; quantity: number }> };
 
 @Injectable()
-export class BusinessStoreService implements OnModuleDestroy {
+export class BusinessStoreService implements OnModuleDestroy, OnModuleInit {
   private readonly prisma?: PrismaClient;
+  private readonly production = process.env.NODE_ENV === "production";
 
   constructor(
     @Inject(DemoStoreService) private readonly demo: DemoStoreService,
@@ -18,6 +19,8 @@ export class BusinessStoreService implements OnModuleDestroy {
     const databaseUrl = config.get<string>("DATABASE_URL");
     if (databaseUrl?.startsWith("postgres") && process.env.NODE_ENV !== "test") {
       this.prisma = new PrismaClient();
+    } else if (this.production) {
+      throw new Error("DATABASE_URL is required in production.");
     }
   }
 
@@ -27,6 +30,16 @@ export class BusinessStoreService implements OnModuleDestroy {
 
   async onModuleDestroy() {
     await this.prisma?.$disconnect();
+  }
+
+  async onModuleInit() {
+    if (!this.prisma) return;
+    try {
+      await this.prisma.$connect();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`DATABASE_URL connection failed: ${message}`);
+    }
   }
 
   async findUser(email?: string, role?: UserRole) {
@@ -47,6 +60,8 @@ export class BusinessStoreService implements OnModuleDestroy {
 
   async findAuthenticatedUser(authId: string, email?: string) {
     if (!this.prisma) throw new ForbiddenException("Supabase authentication requires database persistence");
+    const normalizedEmail = email?.toLowerCase();
+    const role: UserRole = normalizedEmail === "23521197@gm.uit.edu.vn" ? "ADMIN" : "CUSTOMER";
     const user = await this.prisma.userProfile.findFirst({
       where: { OR: [{ authId }, ...(email ? [{ email }] : [])] }
     });
@@ -54,13 +69,13 @@ export class BusinessStoreService implements OnModuleDestroy {
       if (!email) throw new ForbiddenException("Authenticated user has no email profile");
       return this.mapUser(
         await this.prisma.userProfile.create({
-          data: { id: this.id("u"), authId, email, name: email.split("@")[0], role: "CUSTOMER" }
+          data: { id: this.id("u"), authId, email, name: email.split("@")[0], role }
         })
       );
     }
     if (user.banned) throw new ForbiddenException("Authenticated user has no active profile");
-    if (!user.authId) {
-      return this.mapUser(await this.prisma.userProfile.update({ where: { id: user.id }, data: { authId } }));
+    if (!user.authId || user.role !== role) {
+      return this.mapUser(await this.prisma.userProfile.update({ where: { id: user.id }, data: { authId, role } }));
     }
     return this.mapUser(user);
   }
@@ -369,49 +384,38 @@ export class BusinessStoreService implements OnModuleDestroy {
 
   async visibleBookings(user: DemoUser): Promise<Booking[]> {
     if (!this.prisma) return this.demo.visibleBookings(user);
-    try {
-      const where =
-        user.role === "ADMIN"
-          ? {}
-          : user.role === "CUSTOMER"
-            ? { customerId: user.id }
-            : user.role === "OWNER"
-              ? { homestay: { ownerId: user.id } }
-              : user.role === "OWNER_STAFF"
-                ? { homestay: { staffAssignments: { some: { staffId: user.id } } } }
-                : { id: "__none__" };
-      const rows = await this.prisma.booking.findMany({ where, include: { services: true, payment: true }, orderBy: { createdAt: "desc" } });
-      return rows.map((row) => this.mapBooking(row));
-    } catch (error) {
-      if (this.isPrismaUnavailable(error)) return this.demo.visibleBookings(user);
-      throw error;
-    }
+    const where =
+      user.role === "ADMIN"
+        ? {}
+        : user.role === "CUSTOMER"
+          ? { customerId: user.id }
+          : user.role === "OWNER"
+            ? { homestay: { ownerId: user.id } }
+            : user.role === "OWNER_STAFF"
+              ? { homestay: { staffAssignments: { some: { staffId: user.id } } } }
+              : { id: "__none__" };
+    const rows = await this.prisma.booking.findMany({ where, include: { services: true, payment: true }, orderBy: { createdAt: "desc" } });
+    return rows.map((row) => this.mapBooking(row));
   }
 
   async assertCanAccessBooking(user: DemoUser, bookingId: string): Promise<Booking> {
     if (!this.prisma) return this.demo.assertCanAccessBooking(user, bookingId);
-    try {
-      const row = await this.prisma.booking.findUnique({
-        where: { id: bookingId },
-        include: { services: true, payment: true, homestay: { include: { staffAssignments: true } } }
-      });
-      if (!row) throw new NotFoundException("Booking not found");
-      const allowed =
-        user.role === "ADMIN" ||
-        (user.role === "CUSTOMER" && row.customerId === user.id) ||
-        (user.role === "OWNER" && row.homestay.ownerId === user.id) ||
-        (user.role === "OWNER_STAFF" && row.homestay.staffAssignments.some((assignment) => assignment.staffId === user.id));
-      if (!allowed) throw new ForbiddenException("User cannot access this booking");
-      return this.mapBooking(row);
-    } catch (error) {
-      if (this.isPrismaUnavailable(error)) return this.demo.assertCanAccessBooking(user, bookingId);
-      throw error;
-    }
+    const row = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { services: true, payment: true, homestay: { include: { staffAssignments: true } } }
+    });
+    if (!row) throw new NotFoundException("Booking not found");
+    const allowed =
+      user.role === "ADMIN" ||
+      (user.role === "CUSTOMER" && row.customerId === user.id) ||
+      (user.role === "OWNER" && row.homestay.ownerId === user.id) ||
+      (user.role === "OWNER_STAFF" && row.homestay.staffAssignments.some((assignment) => assignment.staffId === user.id));
+    if (!allowed) throw new ForbiddenException("User cannot access this booking");
+    return this.mapBooking(row);
   }
 
   async createBooking(input: BookingInput): Promise<Booking> {
     if (!this.prisma) return this.demo.createBooking(input);
-    try {
     if (!input.homestayId) throw new BadRequestException("Homestay is required");
     const homestay = await this.prisma.homestay.findUnique({
       where: { id: String(input.homestayId) },
@@ -488,10 +492,6 @@ export class BusinessStoreService implements OnModuleDestroy {
       { isolationLevel: "Serializable" }
     );
     return this.mapBooking(row);
-    } catch (error) {
-      if (this.isPrismaUnavailable(error)) return this.demo.createBooking(input);
-      throw error;
-    }
   }
 
   async addServiceToBooking(bookingId: string, serviceId: string, quantity = 1, actorId?: string): Promise<Booking> {
@@ -548,25 +548,20 @@ export class BusinessStoreService implements OnModuleDestroy {
 
   async upsertPayment(bookingId: string, payment: Omit<Payment, "id" | "bookingId">, actorId?: string) {
     if (!this.prisma) return this.demo.upsertPayment(bookingId, payment);
-    try {
-      const statuses: Payment["status"][] = ["INITIATED", "PENDING", "PAID", "FAILED", "CANCELLED"];
-      if (!statuses.includes(payment.status)) throw new BadRequestException("Invalid payment status");
-      const row = await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.payment.upsert({
-          where: { bookingId },
-          update: payment,
-          create: { id: this.id("pay"), bookingId, ...payment }
-        });
-        await tx.auditLog.create({
-          data: { actorId, action: "PAYMENT_UPDATED", entity: "Payment", entityId: updated.id, metadata: { bookingId, status: payment.status } }
-        });
-        return updated;
+    const statuses: Payment["status"][] = ["INITIATED", "PENDING", "PAID", "FAILED", "CANCELLED"];
+    if (!statuses.includes(payment.status)) throw new BadRequestException("Invalid payment status");
+    const row = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.payment.upsert({
+        where: { bookingId },
+        update: payment,
+        create: { id: this.id("pay"), bookingId, ...payment }
       });
-      return this.mapPayment(row);
-    } catch (error) {
-      if (this.isPrismaUnavailable(error)) return this.demo.upsertPayment(bookingId, payment);
-      throw error;
-    }
+      await tx.auditLog.create({
+        data: { actorId, action: "PAYMENT_UPDATED", entity: "Payment", entityId: updated.id, metadata: { bookingId, status: payment.status } }
+      });
+      return updated;
+    });
+    return this.mapPayment(row);
   }
 
   async setServiceOrderStatus(bookingId: string, serviceOrderId: string, status: BookingService["status"]) {
@@ -765,19 +760,6 @@ export class BusinessStoreService implements OnModuleDestroy {
       throw new BadRequestException("Check-out must be after check-in");
     }
     return Math.ceil((end - start) / 86_400_000);
-  }
-
-  private isPrismaUnavailable(error: unknown) {
-    const candidate = error as { code?: string; name?: string; message?: string };
-    const message = candidate?.message ?? "";
-    return (
-      candidate?.name === "PrismaClientInitializationError" ||
-      candidate?.code === "P1000" ||
-      candidate?.code === "P1001" ||
-      candidate?.code === "P1002" ||
-      message.includes("Authentication failed against database server") ||
-      message.includes("Can't reach database server")
-    );
   }
 
   private id(prefix: string) {

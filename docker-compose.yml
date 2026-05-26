@@ -1,4 +1,5 @@
 services:
+  # Local development only. Production Redis must be configured via REDIS_URL.
   redis:
     image: redis:7-alpine
     ports:
