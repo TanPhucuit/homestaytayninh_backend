@@ -35,6 +35,7 @@ export class AuthController {
       sessionToken: session.token,
       expiresAt: session.expiresAt,
       user,
+      role: user.role,
       redirectTo: homeForRole(user.role)
     };
   }
