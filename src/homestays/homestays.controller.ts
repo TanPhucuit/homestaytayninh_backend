@@ -14,7 +14,7 @@ export class HomestaysController {
     this.validateNumericQuery(query.guests, "guests");
     this.validateNumericQuery(query.maxPrice, "maxPrice");
     this.validateDateRange(query.checkIn, query.checkOut);
-    const key = `homestays:${JSON.stringify(query)}`;
+    const key = `catalog:homestays:${JSON.stringify(query)}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
     const data = await this.store.catalogList(query);
@@ -24,7 +24,7 @@ export class HomestaysController {
 
   @Get(":id")
   async detail(@Param("id") id: string) {
-    const key = `homestay:${id}`;
+    const key = `catalog:homestay:${id}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
     const data = await this.store.catalogDetail(id);
