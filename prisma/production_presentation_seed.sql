@@ -1,5 +1,6 @@
 -- Production presentation data for the Stitch-aligned frontend.
 -- Idempotent: only upserts known presentation records, does not delete user data.
+-- Existing user_profiles keep role/authId/banned unchanged; authorization remains owned by real DB profiles.
 
 insert into public.user_profiles (id, name, email, phone, role, banned)
 values
@@ -10,10 +11,7 @@ values
   ('u-admin', 'Quản trị viên', 'admin@homestay.vn', '0901000005', 'ADMIN', false)
 on conflict (id) do update set
   name = excluded.name,
-  email = excluded.email,
   phone = excluded.phone,
-  role = excluded.role,
-  banned = excluded.banned,
   "updatedAt" = now();
 
 insert into public.homestays (id, "ownerId", name, type, location, description, "priceFrom", capacity, rating, "imageUrl", latitude, longitude)
@@ -61,6 +59,23 @@ on conflict (id) do update set
   "totalUnits" = excluded."totalUnits",
   active = excluded.active,
   "updatedAt" = now();
+
+insert into public.room_rates (id, "roomId", "startDate", "endDate", "pricePerNight")
+values
+  ('00000000-0000-4000-8000-000000000101', 'room-ba-den-family', '2026-06-01', '2026-08-31', 1650000),
+  ('00000000-0000-4000-8000-000000000102', 'room-ma-loi-canvas', '2026-06-01', '2026-08-31', 1100000)
+on conflict (id) do update set
+  "pricePerNight" = excluded."pricePerNight";
+
+insert into public.homestay_images (id, "homestayId", url, alt, position)
+values
+  ('00000000-0000-4000-8000-000000000201', 'hs-ba-den', 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=85', 'Terra Leaf Nui Ba', 1),
+  ('00000000-0000-4000-8000-000000000202', 'hs-ma-loi', 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=85', 'Ma Loi Forest Retreat', 1),
+  ('00000000-0000-4000-8000-000000000203', 'hs-trang-bang', 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=85', 'Soft Sand Trang Bang', 1)
+on conflict (id) do update set
+  url = excluded.url,
+  alt = excluded.alt,
+  position = excluded.position;
 
 insert into public.amenities ("homestayId", name)
 values
@@ -157,3 +172,10 @@ on conflict (id) do update set
   content = excluded.content,
   status = excluded.status,
   "updatedAt" = now();
+
+insert into public.violation_reports (id, "reporterId", "reportedUserId", reason, status)
+values
+  ('report-1', 'u-customer', 'u-owner', 'Thong tin dich vu can duoc xac minh.', 'OPEN'),
+  ('report-2', 'u-customer', 'u-owner', 'Bao cao da duoc doi van hanh xu ly.', 'RESOLVED')
+on conflict (id) do update set
+  status = excluded.status;

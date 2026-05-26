@@ -110,10 +110,13 @@ npm run seed
 Production presentation data used by the Stitch-aligned UI can be reapplied safely with:
 
 ```bash
-psql "$DATABASE_URL" -f prisma/production_presentation_seed.sql
+ALLOW_PRESENTATION_SEED=true PRESENTATION_SEED_TARGET=test npm run seed:presentation
+
+# Production requires an explicit second guard:
+ALLOW_PRESENTATION_SEED=true PRESENTATION_SEED_TARGET=production ALLOW_PRODUCTION_DEMO_UPSERT=true npm run seed:presentation
 ```
 
-The script is idempotent and upserts presentation catalog, services, booking states, payments and CMS articles without deleting existing data. These are persisted records for rendering the UI, not an in-memory fallback.
+The Prisma seed is idempotent and upserts presentation catalog, rooms, rates, images, amenities, services, booking states, payments, CMS articles and reports without deleting existing data. Existing `user_profiles` keep their `role`, `authId` and `banned` values on update. These are persisted records for rendering the UI, not an in-memory fallback. The SQL file `prisma/production_presentation_seed.sql` is kept for manual review/DB-console execution and follows the same no-delete/no-role-overwrite rule.
 
 Applied Supabase migrations:
 
