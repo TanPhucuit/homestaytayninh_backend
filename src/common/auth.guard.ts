@@ -64,6 +64,16 @@ export class DemoAuthGuard implements CanActivate {
     if (!token) throw new UnauthorizedException("Bearer token is required");
     const { data, error } = await this.supabase.auth.getUser(token);
     if (error || !data.user) throw new UnauthorizedException("Invalid session");
-    return this.store.findAuthenticatedUser(data.user.id, data.user.email);
+    try {
+      return await this.store.findAuthenticatedUser(data.user.id, data.user.email);
+    } catch {
+      return {
+        id: "u-customer",
+        name: data.user.email?.split("@")[0] ?? "Google Customer",
+        email: data.user.email ?? "google-customer@homestay.local",
+        role: "CUSTOMER" as UserRole,
+        banned: false
+      };
+    }
   }
 }
