@@ -16,7 +16,7 @@ export class PaymentsController {
   ) {}
 
   @Post("initiate")
-  @Roles("CUSTOMER", "OWNER_STAFF")
+  @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async initiate(@Req() req: Request, @Body() body: { bookingId: string }) {
     const booking = await this.store.assertCanAccessBooking(req.user!, body.bookingId);
     const intent = await this.provider.createPaymentIntent({ bookingId: booking.id, amount: booking.grandTotal });

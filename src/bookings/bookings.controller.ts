@@ -15,7 +15,7 @@ export class BookingsController {
   ) {}
 
   @Post("bookings")
-  @Roles("CUSTOMER", "OWNER_STAFF")
+  @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async create(@Req() req: Request, @Body() body: Record<string, unknown>) {
     const user = req.user!;
     const booking = await this.store.createBooking({
@@ -40,7 +40,7 @@ export class BookingsController {
   }
 
   @Post("bookings/:id/services")
-  @Roles("CUSTOMER", "OWNER_STAFF")
+  @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async addService(@Req() req: Request, @Param("id") bookingId: string, @Body() body: { serviceId: string; quantity?: number }) {
     await this.store.assertCanAccessBooking(req.user!, bookingId);
     const booking = await this.store.addServiceToBooking(bookingId, body.serviceId, Number(body.quantity ?? 1), req.user!.id);
