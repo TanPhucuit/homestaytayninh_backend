@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
 import { ArticleStatus } from "../common/domain";
@@ -7,9 +7,10 @@ import { DemoStoreService } from "../common/demo-store.service";
 @UseGuards(DemoAuthGuard)
 @Controller("cms/articles")
 export class CmsController {
-  constructor(private readonly store: DemoStoreService) {}
+  constructor(@Inject(DemoStoreService) private readonly store: DemoStoreService) {}
 
   @Get()
+  @Roles("STAFF", "ADMIN")
   list() {
     return this.store.articles;
   }

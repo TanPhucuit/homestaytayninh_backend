@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
 import { UserRole } from "../common/domain";
@@ -7,10 +7,10 @@ import { DemoStoreService } from "../common/demo-store.service";
 @UseGuards(DemoAuthGuard)
 @Controller("admin")
 export class AdminController {
-  constructor(private readonly store: DemoStoreService) {}
+  constructor(@Inject(DemoStoreService) private readonly store: DemoStoreService) {}
 
   @Get("dashboard")
-  @Roles("ADMIN", "STAFF")
+  @Roles("ADMIN")
   dashboard() {
     return this.store.metrics();
   }

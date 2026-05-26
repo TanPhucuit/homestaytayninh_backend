@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
 import { DemoStoreService } from "../common/demo-store.service";
@@ -11,14 +12,14 @@ export class PaymentsController {
   private readonly provider = new MockApiPayProvider();
 
   constructor(
-    private readonly store: DemoStoreService,
-    private readonly events: EventsService
+    @Inject(DemoStoreService) private readonly store: DemoStoreService,
+    @Inject(EventsService) private readonly events: EventsService
   ) {}
 
   @Post("initiate")
   @Roles("CUSTOMER", "OWNER_STAFF")
-  async initiate(@Body() body: { bookingId: string }) {
-    const booking = this.store.getBooking(body.bookingId);
+  async initiate(@Req() req: Request, @Body() body: { bookingId: string }) {
+    const booking = this.store.assertCanAccessBooking(req.user!, body.bookingId);
     const intent = await this.provider.createPaymentIntent({ bookingId: booking.id, amount: booking.grandTotal });
     const payment = this.store.upsertPayment(booking.id, intent);
     await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
@@ -41,14 +42,14 @@ export class PaymentsController {
 
   @Get(":bookingId/status")
   @Roles("CUSTOMER", "OWNER_STAFF", "OWNER", "ADMIN")
-  status(@Param("bookingId") bookingId: string) {
-    return this.store.getBooking(bookingId).payment ?? null;
+  status(@Req() req: Request, @Param("bookingId") bookingId: string) {
+    return this.store.assertCanAccessBooking(req.user!, bookingId).payment ?? null;
   }
 
   @Post(":bookingId/manual-paid")
   @Roles("OWNER_STAFF", "ADMIN")
-  async manualPaid(@Param("bookingId") bookingId: string) {
-    const booking = this.store.getBooking(bookingId);
+  async manualPaid(@Req() req: Request, @Param("bookingId") bookingId: string) {
+    const booking = this.store.assertCanAccessBooking(req.user!, bookingId);
     const payment = this.store.upsertPayment(booking.id, {
       provider: "manual",
       providerRef: `manual_${booking.id}`,

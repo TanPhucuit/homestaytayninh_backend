@@ -17,7 +17,7 @@ export interface Homestay {
   id: string;
   ownerId: string;
   name: string;
-  type: "Phong" | "Leu" | "Nha nguyen can";
+  type: "Phòng" | "Lều" | "Nhà nguyên căn" | "Phong" | "Leu" | "Nha nguyen can";
   location: string;
   description: string;
   priceFrom: number;

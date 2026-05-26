@@ -1,9 +1,9 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Inject } from "@nestjs/common";
 import { SupabaseHealthService } from "../supabase/supabase-health.service";
 
 @Controller("health")
 export class HealthController {
-  constructor(private readonly supabaseHealth: SupabaseHealthService) {}
+  constructor(@Inject(SupabaseHealthService) private readonly supabaseHealth: SupabaseHealthService) {}
 
   @Get()
   health() {

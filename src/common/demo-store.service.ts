@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Article, Booking, BookingService, BookingStatus, DemoUser, Homestay, Payment, Service, UserRole, ViolationReport } from "./domain";
 
 const now = () => new Date().toISOString();
@@ -8,64 +8,64 @@ const id = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 
 export class DemoStoreService {
   readonly users: DemoUser[] = [
     { id: "u-customer", name: "Minh Anh", email: "customer@homestay.vn", phone: "0901000001", role: "CUSTOMER", banned: false },
-    { id: "u-owner", name: "Chu Homestay", email: "owner@homestay.vn", phone: "0901000002", role: "OWNER", banned: false },
-    { id: "u-owner-staff", name: "Nhan Vien Homestay", email: "staff-owner@homestay.vn", phone: "0901000003", role: "OWNER_STAFF", banned: false },
-    { id: "u-staff", name: "Content Staff", email: "staff@homestay.vn", role: "STAFF", banned: false },
-    { id: "u-admin", name: "System Admin", email: "admin@homestay.vn", role: "ADMIN", banned: false }
+    { id: "u-owner", name: "Chủ Homestay", email: "owner@homestay.vn", phone: "0901000002", role: "OWNER", banned: false },
+    { id: "u-owner-staff", name: "Nhân viên Homestay", email: "owner.staff@homestay.vn", phone: "0901000003", role: "OWNER_STAFF", banned: false },
+    { id: "u-staff", name: "Nhân viên nội dung", email: "staff@homestay.vn", role: "STAFF", banned: false },
+    { id: "u-admin", name: "Quản trị viên", email: "admin@homestay.vn", role: "ADMIN", banned: false }
   ];
 
   readonly homestays: Homestay[] = [
     {
       id: "hs-ba-den",
       ownerId: "u-owner",
-      name: "Terra Leaf Nui Ba",
-      type: "Nha nguyen can",
-      location: "Gan nui Ba Den, Tay Ninh",
-      description: "Can nha vuon am cung voi view nui, bep rieng va san BBQ cho nhom ban hoac gia dinh.",
+      name: "Terra Leaf Núi Bà",
+      type: "Nhà nguyên căn",
+      location: "Gần núi Bà Đen, Tây Ninh",
+      description: "Căn nhà vườn ấm cúng với view núi, bếp riêng và sân BBQ cho nhóm bạn hoặc gia đình.",
       priceFrom: 1450000,
       capacity: 8,
       rating: 4.8,
       imageUrl: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
-      amenities: ["Wifi", "Bep rieng", "San BBQ", "May lanh", "Bai dau xe"],
+      amenities: ["Wifi", "Bếp riêng", "Sân BBQ", "Máy lạnh", "Bãi đỗ xe"],
       rooms: [
-        { id: "room-ba-den-family", homestayId: "hs-ba-den", name: "Family Garden House", roomType: "Nha nguyen can", pricePerNight: 1450000, capacity: 8, totalUnits: 1, active: true }
+        { id: "room-ba-den-family", homestayId: "hs-ba-den", name: "Family Garden House", roomType: "Nhà nguyên căn", pricePerNight: 1450000, capacity: 8, totalUnits: 1, active: true }
       ],
       includedServices: [
-        { id: "svc-breakfast", homestayId: "hs-ba-den", name: "Bua sang", unitPrice: 0, included: true, active: true },
+        { id: "svc-breakfast", homestayId: "hs-ba-den", name: "Bữa sáng", unitPrice: 0, included: true, active: true },
         { id: "svc-wifi", homestayId: "hs-ba-den", name: "Wifi", unitPrice: 0, included: true, active: true }
       ],
       services: [
-        { id: "svc-bbq", homestayId: "hs-ba-den", name: "Tiec BBQ san vuon", description: "Set BBQ cho 4 nguoi", unitPrice: 650000, included: false, active: true },
-        { id: "svc-trekking", homestayId: "hs-ba-den", name: "Tour trekking", description: "Huong dan vien nua ngay", unitPrice: 450000, included: false, active: true }
+        { id: "svc-bbq", homestayId: "hs-ba-den", name: "Tiệc BBQ sân vườn", description: "Set BBQ cho 4 người", unitPrice: 650000, included: false, active: true },
+        { id: "svc-trekking", homestayId: "hs-ba-den", name: "Trekking Núi Bà", description: "Hướng dẫn viên nửa ngày", unitPrice: 450000, included: false, active: true }
       ],
       reviews: [
-        { id: "rev-1", userId: "u-customer", rating: 5, comment: "Khong gian dep, gan nui, nhan vien ho tro nhanh." }
+        { id: "rev-1", userId: "u-customer", rating: 5, comment: "Không gian đẹp, gần núi, nhân viên hỗ trợ nhanh." }
       ]
     },
     {
       id: "hs-trang-bang",
       ownerId: "u-owner",
-      name: "Soft Sand Trang Bang",
-      type: "Phong",
-      location: "Trang Bang, Tay Ninh",
-      description: "Phong rieng phong cach toi gian, phu hop cap doi va khach cong tac ngan ngay.",
-      priceFrom: 690000,
-      capacity: 2,
+      name: "Soft Sand Trảng Bàng",
+      type: "Phòng",
+      location: "Trảng Bàng, Tây Ninh",
+      description: "Phòng nghỉ thư thái gần làng nghề bánh tráng, phù hợp cho chuyến đi cuối tuần.",
+      priceFrom: 720000,
+      capacity: 3,
       rating: 4.6,
       imageUrl: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80",
-      amenities: ["Wifi", "May lanh", "An sang", "Giu hanh ly"],
+      amenities: ["Wifi", "Máy lạnh", "Bãi đỗ xe"],
       rooms: [
-        { id: "room-trang-bang-deluxe", homestayId: "hs-trang-bang", name: "Deluxe Soft Sand", roomType: "Phong", pricePerNight: 690000, capacity: 2, totalUnits: 6, active: true }
+        { id: "room-trang-bang-deluxe", homestayId: "hs-trang-bang", name: "Deluxe Garden Room", roomType: "Phòng", pricePerNight: 720000, capacity: 3, totalUnits: 2, active: true }
       ],
       includedServices: [
-        { id: "svc-welcome", homestayId: "hs-trang-bang", name: "Nuoc chao mung", unitPrice: 0, included: true, active: true }
+        { id: "svc-welcome", homestayId: "hs-trang-bang", name: "Nước chào mừng", unitPrice: 0, included: true, active: true }
       ],
       services: [
-        { id: "svc-bike", homestayId: "hs-trang-bang", name: "Thue xe may", unitPrice: 180000, included: false, active: true },
-        { id: "svc-water", homestayId: "hs-trang-bang", name: "Nuoc uong them", unitPrice: 20000, included: false, active: true }
+        { id: "svc-bike", homestayId: "hs-trang-bang", name: "Thuê xe máy", unitPrice: 160000, included: false, active: true },
+        { id: "svc-water", homestayId: "hs-trang-bang", name: "Nước uống", unitPrice: 20000, included: false, active: true }
       ],
       reviews: [
-        { id: "rev-2", userId: "u-customer", rating: 4, comment: "Sach se, tien di chuyen." }
+        { id: "rev-2", userId: "u-customer", rating: 4, comment: "Sạch sẽ, tiện di chuyển." }
       ]
     }
   ];
@@ -88,7 +88,7 @@ export class DemoStoreService {
       grandTotal: 3550000,
       createdAt: now(),
       services: [
-        { id: "bs-demo-1", bookingId: "bk-demo-1", serviceId: "svc-bbq", name: "Tiec BBQ san vuon", quantity: 1, unitPrice: 650000, total: 650000, status: "PREPARING" }
+        { id: "bs-demo-1", bookingId: "bk-demo-1", serviceId: "svc-bbq", name: "Tiệc BBQ sân vườn", quantity: 1, unitPrice: 650000, total: 650000, status: "PREPARING" }
       ],
       payment: {
         id: "pay-demo-1",
@@ -106,10 +106,10 @@ export class DemoStoreService {
     {
       id: "art-1",
       authorId: "u-staff",
-      title: "48 gio kham pha Tay Ninh",
+      title: "48 giờ khám phá Tây Ninh",
       slug: "48-gio-kham-pha-tay-ninh",
-      excerpt: "Lich trinh gan nui Ba Den, mon an dia phuong va homestay gan thien nhien.",
-      content: "Goi y lich trinh 2 ngay 1 dem cho khach lan dau den Tay Ninh.",
+      excerpt: "Lịch trình gần Núi Bà Đen, món ăn địa phương và homestay gần thiên nhiên.",
+      content: "Gợi ý lịch trình 2 ngày 1 đêm cho khách lần đầu đến Tây Ninh.",
       status: "PUBLISHED"
     }
   ];
@@ -155,12 +155,42 @@ export class DemoStoreService {
     return booking;
   }
 
+  visibleHomestays(user: DemoUser) {
+    if (user.role === "ADMIN") return this.homestays;
+    if (user.role === "OWNER") return this.homestays.filter((homestay) => homestay.ownerId === user.id);
+    if (user.role === "OWNER_STAFF") return this.homestays.filter((homestay) => homestay.ownerId === "u-owner");
+    return [];
+  }
+
+  visibleBookings(user: DemoUser) {
+    if (user.role === "ADMIN") return this.bookings;
+    if (user.role === "CUSTOMER") return this.bookings.filter((booking) => booking.customerId === user.id);
+    const homestayIds = new Set(this.visibleHomestays(user).map((homestay) => homestay.id));
+    return this.bookings.filter((booking) => homestayIds.has(booking.homestayId));
+  }
+
+  assertCanAccessBooking(user: DemoUser, bookingId: string) {
+    const booking = this.getBooking(bookingId);
+    if (!this.visibleBookings(user).some((visible) => visible.id === booking.id)) {
+      throw new ForbiddenException("User cannot access this booking");
+    }
+    return booking;
+  }
+
+  assertCanManageHomestay(user: DemoUser, homestayId: string) {
+    const homestay = this.getHomestay(homestayId);
+    if (user.role !== "ADMIN" && (user.role !== "OWNER" || homestay.ownerId !== user.id)) {
+      throw new ForbiddenException("User cannot manage this homestay");
+    }
+    return homestay;
+  }
+
   createRoom(homestayId: string, input: Partial<Homestay["rooms"][number]>) {
     const homestay = this.getHomestay(homestayId);
     const room = {
       id: id("room"),
       homestayId,
-      name: String(input.name ?? "Phong moi"),
+      name: String(input.name ?? "Phòng mới"),
       roomType: String(input.roomType ?? homestay.type),
       pricePerNight: Number(input.pricePerNight ?? homestay.priceFrom),
       capacity: Number(input.capacity ?? 2),
@@ -191,7 +221,7 @@ export class DemoStoreService {
     const service: Service = {
       id: id("svc"),
       homestayId,
-      name: String(input.name ?? "Dich vu moi"),
+      name: String(input.name ?? "Dịch vụ mới"),
       description: input.description,
       unitPrice: Number(input.unitPrice ?? 0),
       included: Boolean(input.included ?? false),
@@ -225,8 +255,14 @@ export class DemoStoreService {
   }
 
   createBooking(input: Partial<Booking> & { serviceItems?: Array<{ serviceId: string; quantity: number }> }) {
+    if (!input.homestayId) throw new BadRequestException("Homestay is required");
     const homestay = this.getHomestay(String(input.homestayId));
     const room = homestay.rooms.find((item) => item.id === input.roomId) ?? homestay.rooms[0];
+    if (!room?.active) throw new BadRequestException("No active room is available");
+    const guestCount = Number(input.guestCount ?? 1);
+    if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > room.capacity) {
+      throw new BadRequestException("Guest count exceeds room capacity");
+    }
     const nights = this.nights(String(input.checkIn), String(input.checkOut));
     const services = this.createBookingServices("pending", homestay.services, input.serviceItems ?? []);
     const roomTotal = room.pricePerNight * nights;
@@ -239,7 +275,7 @@ export class DemoStoreService {
       roomId: room.id,
       guestName: String(input.guestName ?? "Demo Guest"),
       guestPhone: String(input.guestPhone ?? "0900000000"),
-      guestCount: Number(input.guestCount ?? 1),
+      guestCount,
       checkIn: String(input.checkIn),
       checkOut: String(input.checkOut),
       status: "PENDING",
@@ -263,6 +299,9 @@ export class DemoStoreService {
     const homestay = this.getHomestay(booking.homestayId);
     const service = homestay.services.find((item) => item.id === serviceId);
     if (!service) throw new NotFoundException("Service not found");
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new BadRequestException("Service quantity must be a positive integer");
+    }
     const bookingService: BookingService = {
       id: id("bs"),
       bookingId,
@@ -285,11 +324,11 @@ export class DemoStoreService {
     const allowed: Record<BookingStatus, BookingStatus[]> = {
       PENDING: ["CONFIRMED", "CANCELLED"],
       CONFIRMED: ["IN_STAY", "CANCELLED"],
-      IN_STAY: ["COMPLETED", "CANCELLED"],
+      IN_STAY: ["COMPLETED"],
       COMPLETED: [],
       CANCELLED: []
     };
-    if (!allowed[booking.status].includes(status)) {
+    if (!Object.hasOwn(allowed, status) || !allowed[booking.status].includes(status)) {
       throw new BadRequestException(`Cannot change booking from ${booking.status} to ${status}`);
     }
     booking.status = status;
@@ -298,6 +337,10 @@ export class DemoStoreService {
 
   upsertPayment(bookingId: string, payment: Omit<Payment, "id" | "bookingId">) {
     const booking = this.getBooking(bookingId);
+    const statuses: Payment["status"][] = ["INITIATED", "PENDING", "PAID", "FAILED", "CANCELLED"];
+    if (!statuses.includes(payment.status)) {
+      throw new BadRequestException("Invalid payment status");
+    }
     booking.payment = {
       id: booking.payment?.id ?? id("pay"),
       bookingId,
@@ -310,6 +353,9 @@ export class DemoStoreService {
     const booking = this.getBooking(bookingId);
     const service = booking.services.find((item) => item.id === bookingServiceId);
     if (!service) throw new NotFoundException("Booking service not found");
+    if (status !== "PREPARING" && status !== "SERVED") {
+      throw new BadRequestException("Invalid service order status");
+    }
     service.status = status;
     return service;
   }
@@ -360,19 +406,25 @@ export class DemoStoreService {
   setRole(userId: string, role: UserRole) {
     const user = this.users.find((item) => item.id === userId);
     if (!user) throw new NotFoundException("User not found");
+    const allowedRoles: UserRole[] = ["CUSTOMER", "OWNER", "OWNER_STAFF", "STAFF", "ADMIN"];
+    if (!allowedRoles.includes(role)) throw new BadRequestException("Invalid user role");
     user.role = role;
     return user;
   }
 
   createArticle(input: Partial<Article>) {
+    const status = input.status ?? "DRAFT";
+    if (status !== "DRAFT" && status !== "PUBLISHED") {
+      throw new BadRequestException("Invalid article status");
+    }
     const article: Article = {
       id: id("art"),
       authorId: input.authorId ?? "u-staff",
-      title: String(input.title ?? "Bai viet moi"),
+      title: String(input.title ?? "Bài viết mới"),
       slug: String(input.slug ?? id("article")),
       excerpt: String(input.excerpt ?? ""),
       content: String(input.content ?? ""),
-      status: input.status ?? "DRAFT"
+      status
     };
     this.articles.unshift(article);
     return article;
@@ -381,6 +433,9 @@ export class DemoStoreService {
   updateArticle(articleId: string, input: Partial<Article>) {
     const article = this.articles.find((item) => item.id === articleId);
     if (!article) throw new NotFoundException("Article not found");
+    if (input.status && input.status !== "DRAFT" && input.status !== "PUBLISHED") {
+      throw new BadRequestException("Invalid article status");
+    }
     Object.assign(article, input);
     return article;
   }
@@ -407,6 +462,9 @@ export class DemoStoreService {
     return items.map((item) => {
       const service = services.find((candidate) => candidate.id === item.serviceId);
       if (!service) throw new NotFoundException(`Service ${item.serviceId} not found`);
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException("Service quantity must be a positive integer");
+      }
       return {
         id: id("bs"),
         bookingId,
@@ -423,6 +481,9 @@ export class DemoStoreService {
   private nights(checkIn: string, checkOut: string) {
     const start = new Date(checkIn).getTime();
     const end = new Date(checkOut).getTime();
-    return Math.max(1, Math.ceil((end - start) / 86_400_000));
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      throw new BadRequestException("Check-out must be after check-in");
+    }
+    return Math.ceil((end - start) / 86_400_000);
   }
 }

@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY } from "./auth.decorator";
 import { DemoUser, UserRole } from "./domain";
@@ -11,7 +11,7 @@ declare module "express-serve-static-core" {
 
 @Injectable()
 export class DemoAuthGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
@@ -31,6 +31,6 @@ export class DemoAuthGuard implements CanActivate {
     request.user = user;
     if (!roles?.length) return true;
     if (roles.includes(user.role)) return true;
-    throw new UnauthorizedException(`Role ${user.role} cannot access this resource`);
+    throw new ForbiddenException(`Role ${user.role} cannot access this resource`);
   }
 }

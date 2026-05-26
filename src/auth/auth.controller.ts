@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, Req, UseGuards } from "@nestjs/common";
 import { Request } from "express";
 import { DemoAuthGuard } from "../common/auth.guard";
 import { UserRole } from "../common/domain";
@@ -6,7 +6,7 @@ import { DemoStoreService } from "../common/demo-store.service";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly store: DemoStoreService) {}
+  constructor(@Inject(DemoStoreService) private readonly store: DemoStoreService) {}
 
   @UseGuards(DemoAuthGuard)
   @Get("me")
@@ -22,4 +22,3 @@ export class AuthController {
     return byEmail ?? byRole ?? this.store.users[0];
   }
 }
-

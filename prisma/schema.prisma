@@ -42,9 +42,14 @@ enum ArticleStatus {
   PUBLISHED
 }
 
+enum ViolationReportStatus {
+  OPEN
+  RESOLVED
+}
+
 model UserProfile {
   id        String   @id @default(uuid())
-  authId    String?  @unique
+  authId    String?  @unique @db.Uuid
   name      String
   email     String   @unique
   phone     String?
@@ -53,11 +58,15 @@ model UserProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  homestays Homestay[] @relation("OwnerHomestays")
-  bookings  Booking[]  @relation("CustomerBookings")
-  articles  Article[]
-  reviews   Review[]
-  audits    AuditLog[]
+  homestays        Homestay[]             @relation("OwnerHomestays")
+  bookings         Booking[]              @relation("CustomerBookings")
+  articles         Article[]
+  reviews          Review[]
+  audits           AuditLog[]
+  reportsMade      ViolationReport[]      @relation("Reporter")
+  reportsReceived  ViolationReport[]      @relation("ReportedUser")
+  staffAssignments OwnerStaffAssignment[]
+  proxyBookings    Booking[]              @relation("ProxyBookings")
 
   @@index([role])
   @@map("user_profiles")
@@ -79,40 +88,84 @@ model Homestay {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner     UserProfile @relation("OwnerHomestays", fields: [ownerId], references: [id])
-  rooms     Room[]
-  amenities Amenity[]
-  services  Service[]
-  bookings  Booking[]
-  reviews   Review[]
+  owner            UserProfile            @relation("OwnerHomestays", fields: [ownerId], references: [id])
+  rooms            Room[]
+  amenities        Amenity[]
+  services         Service[]
+  bookings         Booking[]
+  reviews          Review[]
+  images           HomestayImage[]
+  staffAssignments OwnerStaffAssignment[]
 
   @@index([ownerId])
-  @@index([type])
-  @@index([priceFrom])
+  @@index([type, priceFrom, capacity])
   @@map("homestays")
 }
 
 model Room {
-  id          String   @id @default(uuid())
-  homestayId  String
-  name        String
-  roomType    String
+  id            String   @id @default(uuid())
+  homestayId    String
+  name          String
+  roomType      String
   pricePerNight Int
-  capacity    Int
-  totalUnits  Int      @default(1)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  capacity      Int
+  totalUnits    Int      @default(1)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  homestay Homestay  @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+  homestay Homestay   @relation(fields: [homestayId], references: [id], onDelete: Cascade)
   bookings Booking[]
+  rates    RoomRate[]
 
   @@index([homestayId])
   @@map("rooms")
 }
 
+model RoomRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  roomId        String
+  startDate     DateTime @db.Date
+  endDate       DateTime @db.Date
+  pricePerNight Int
+  createdAt     DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, startDate, endDate])
+  @@map("room_rates")
+}
+
+model HomestayImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  homestayId String
+  url        String
+  alt        String   @default("")
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  homestay Homestay @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+
+  @@index([homestayId, position])
+  @@map("homestay_images")
+}
+
+model OwnerStaffAssignment {
+  id         String   @id @default(uuid()) @db.Uuid
+  homestayId String
+  staffId    String
+  createdAt  DateTime @default(now())
+
+  homestay Homestay    @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+  staff    UserProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([homestayId, staffId])
+  @@index([staffId])
+  @@map("owner_staff_assignments")
+}
+
 model Amenity {
-  id         String @id @default(uuid())
+  id         String @id @default(uuid()) @db.Uuid
   homestayId String
   name       String
 
@@ -140,32 +193,35 @@ model Service {
 }
 
 model Booking {
-  id              String        @id @default(uuid())
-  customerId      String
-  homestayId      String
-  roomId          String
-  guestName       String
-  guestPhone      String
-  guestCount      Int
-  checkIn         DateTime
-  checkOut        DateTime
-  status          BookingStatus @default(PENDING)
-  roomTotal       Int
-  serviceTotal    Int           @default(0)
-  taxTotal        Int           @default(0)
-  grandTotal      Int
-  proxyCreatedBy  String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String        @id @default(uuid())
+  customerId     String
+  homestayId     String
+  roomId         String
+  guestName      String
+  guestPhone     String
+  guestCount     Int
+  checkIn        DateTime      @db.Date
+  checkOut       DateTime      @db.Date
+  status         BookingStatus @default(PENDING)
+  roomTotal      Int
+  serviceTotal   Int           @default(0)
+  taxTotal       Int           @default(0)
+  grandTotal     Int
+  proxyCreatedBy String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  customer UserProfile      @relation("CustomerBookings", fields: [customerId], references: [id])
-  homestay Homestay         @relation(fields: [homestayId], references: [id])
-  room     Room             @relation(fields: [roomId], references: [id])
-  services BookingService[]
-  payment  Payment?
+  customer   UserProfile      @relation("CustomerBookings", fields: [customerId], references: [id])
+  homestay   Homestay         @relation(fields: [homestayId], references: [id])
+  room       Room             @relation(fields: [roomId], references: [id])
+  services   BookingService[]
+  payment    Payment?
+  proxyActor UserProfile?     @relation("ProxyBookings", fields: [proxyCreatedBy], references: [id])
 
   @@index([customerId])
   @@index([homestayId, status])
+  @@index([roomId])
+  @@index([proxyCreatedBy], map: "bookings_proxy_created_by_idx")
   @@index([checkIn, checkOut])
   @@map("bookings")
 }
@@ -185,20 +241,21 @@ model BookingService {
   service Service @relation(fields: [serviceId], references: [id])
 
   @@index([bookingId])
+  @@index([serviceId])
   @@map("booking_services")
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  bookingId     String        @unique
-  provider      String
-  providerRef   String?
-  status        PaymentStatus @default(INITIATED)
-  amount        Int
-  checkoutUrl   String?
-  rawPayload    Json?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id          String        @id @default(uuid())
+  bookingId   String        @unique
+  provider    String
+  providerRef String?
+  status      PaymentStatus @default(INITIATED)
+  amount      Int
+  checkoutUrl String?
+  rawPayload  Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
@@ -220,6 +277,7 @@ model Article {
   author UserProfile @relation(fields: [authorId], references: [id])
 
   @@index([status])
+  @@index([authorId])
   @@map("articles")
 }
 
@@ -235,11 +293,12 @@ model Review {
   homestay Homestay    @relation(fields: [homestayId], references: [id], onDelete: Cascade)
 
   @@index([homestayId])
+  @@index([userId])
   @@map("reviews")
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   actorId   String?
   action    String
   entity    String
@@ -250,5 +309,23 @@ model AuditLog {
   actor UserProfile? @relation(fields: [actorId], references: [id])
 
   @@index([entity, entityId])
+  @@index([actorId])
   @@map("audit_logs")
+}
+
+model ViolationReport {
+  id             String                @id @default(uuid())
+  reporterId     String
+  reportedUserId String
+  reason         String
+  status         ViolationReportStatus @default(OPEN)
+  createdAt      DateTime              @default(now())
+
+  reporter     UserProfile @relation("Reporter", fields: [reporterId], references: [id])
+  reportedUser UserProfile @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  @@index([status])
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@map("violation_reports")
 }

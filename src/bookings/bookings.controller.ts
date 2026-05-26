@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
@@ -10,8 +10,8 @@ import { EventsService } from "../events/events.service";
 @Controller()
 export class BookingsController {
   constructor(
-    private readonly store: DemoStoreService,
-    private readonly events: EventsService
+    @Inject(DemoStoreService) private readonly store: DemoStoreService,
+    @Inject(EventsService) private readonly events: EventsService
   ) {}
 
   @Post("bookings")
@@ -20,7 +20,7 @@ export class BookingsController {
     const user = req.user!;
     const booking = this.store.createBooking({
       ...body,
-      customerId: String(body.customerId ?? user.id),
+      customerId: user.role === "CUSTOMER" ? user.id : String(body.customerId ?? "u-customer"),
       proxyCreatedBy: user.role === "OWNER_STAFF" ? user.id : undefined
     });
     await this.events.publish("booking.created", { bookingId: booking.id, status: booking.status });
@@ -30,22 +30,19 @@ export class BookingsController {
   @Get("me/bookings")
   @Roles("CUSTOMER", "OWNER_STAFF", "OWNER", "ADMIN")
   listMine(@Req() req: Request) {
-    const user = req.user!;
-    if (user.role === "CUSTOMER") {
-      return this.store.bookings.filter((booking) => booking.customerId === user.id || user.id === "u-customer");
-    }
-    return this.store.bookings;
+    return this.store.visibleBookings(req.user!);
   }
 
   @Get("bookings/:id")
-  @Roles("CUSTOMER", "OWNER_STAFF", "OWNER", "ADMIN", "STAFF")
-  detail(@Param("id") bookingId: string) {
-    return this.store.getBooking(bookingId);
+  @Roles("CUSTOMER", "OWNER_STAFF", "OWNER", "ADMIN")
+  detail(@Req() req: Request, @Param("id") bookingId: string) {
+    return this.store.assertCanAccessBooking(req.user!, bookingId);
   }
 
   @Post("bookings/:id/services")
   @Roles("CUSTOMER", "OWNER_STAFF")
-  async addService(@Param("id") bookingId: string, @Body() body: { serviceId: string; quantity?: number }) {
+  async addService(@Req() req: Request, @Param("id") bookingId: string, @Body() body: { serviceId: string; quantity?: number }) {
+    this.store.assertCanAccessBooking(req.user!, bookingId);
     const booking = this.store.addServiceToBooking(bookingId, body.serviceId, Number(body.quantity ?? 1));
     await this.events.publish("service_order.created", { bookingId, serviceId: body.serviceId });
     return booking;
@@ -53,7 +50,8 @@ export class BookingsController {
 
   @Patch("bookings/:id/services/:serviceOrderId/status")
   @Roles("OWNER_STAFF", "ADMIN")
-  async updateServiceStatus(@Param("id") bookingId: string, @Param("serviceOrderId") serviceOrderId: string, @Body() body: { status: "PREPARING" | "SERVED" }) {
+  async updateServiceStatus(@Req() req: Request, @Param("id") bookingId: string, @Param("serviceOrderId") serviceOrderId: string, @Body() body: { status: "PREPARING" | "SERVED" }) {
+    this.store.assertCanAccessBooking(req.user!, bookingId);
     const serviceOrder = this.store.setServiceOrderStatus(bookingId, serviceOrderId, body.status);
     await this.events.publish("service_order.updated", { bookingId, serviceOrderId, status: serviceOrder.status });
     return serviceOrder;
@@ -61,7 +59,8 @@ export class BookingsController {
 
   @Patch("bookings/:id/status")
   @Roles("OWNER_STAFF", "ADMIN")
-  async updateStatus(@Param("id") bookingId: string, @Body() body: { status: BookingStatus }) {
+  async updateStatus(@Req() req: Request, @Param("id") bookingId: string, @Body() body: { status: BookingStatus }) {
+    this.store.assertCanAccessBooking(req.user!, bookingId);
     const booking = this.store.updateBookingStatus(bookingId, body.status);
     await this.events.publish("booking.status_changed", { bookingId, status: booking.status });
     return booking;

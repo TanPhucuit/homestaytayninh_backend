@@ -18,6 +18,7 @@ describe("booking state machine", () => {
     expect(store.updateBookingStatus(booking.id, "CONFIRMED").status).toBe("CONFIRMED");
     expect(store.updateBookingStatus(booking.id, "IN_STAY").status).toBe("IN_STAY");
     expect(() => store.updateBookingStatus(booking.id, "PENDING")).toThrow();
+    expect(() => store.updateBookingStatus(booking.id, "CANCELLED")).toThrow();
     expect(store.updateBookingStatus(booking.id, "COMPLETED").status).toBe("COMPLETED");
   });
 });

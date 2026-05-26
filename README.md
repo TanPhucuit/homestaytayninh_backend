@@ -99,4 +99,12 @@ npm run prisma:migrate
 npm run seed
 ```
 
-Apply `prisma/rls.sql` only after confirming which public tables are exposed through Supabase Data API.
+Applied Supabase migrations:
+
+- `prisma/migrations/20260526103000_homestay_mvp_schema/migration.sql`
+- `prisma/migrations/20260526104000_grant_public_catalog_read_access/migration.sql`
+- `prisma/migrations/20260526104500_index_proxy_booking_actor/migration.sql`
+
+The public catalog endpoints `GET /api/homestays` and `GET /api/homestays/:id` read Supabase directly when `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are configured. Public Data API access is read-only through RLS.
+
+Booking, payment, owner, staff and admin mutation endpoints currently retain the in-memory demo store until server-side persistence is wired with `SUPABASE_SECRET_KEY` or Prisma database credentials. Do not expose the Supabase secret key to the frontend.
