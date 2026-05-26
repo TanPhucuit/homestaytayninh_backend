@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  OWNER
+  OWNER_STAFF
+  STAFF
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_STAY
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceOrderStatus {
+  PREPARING
+  SERVED
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model UserProfile {
+  id        String   @id @default(uuid())
+  authId    String?  @unique
+  name      String
+  email     String   @unique
+  phone     String?
+  role      UserRole @default(CUSTOMER)
+  banned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  homestays Homestay[] @relation("OwnerHomestays")
+  bookings  Booking[]  @relation("CustomerBookings")
+  articles  Article[]
+  reviews   Review[]
+  audits    AuditLog[]
+
+  @@index([role])
+  @@map("user_profiles")
+}
+
+model Homestay {
+  id          String   @id @default(uuid())
+  ownerId     String
+  name        String
+  type        String
+  location    String
+  description String
+  priceFrom   Int
+  capacity    Int
+  rating      Float    @default(0)
+  imageUrl    String
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner     UserProfile @relation("OwnerHomestays", fields: [ownerId], references: [id])
+  rooms     Room[]
+  amenities Amenity[]
+  services  Service[]
+  bookings  Booking[]
+  reviews   Review[]
+
+  @@index([ownerId])
+  @@index([type])
+  @@index([priceFrom])
+  @@map("homestays")
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  homestayId  String
+  name        String
+  roomType    String
+  pricePerNight Int
+  capacity    Int
+  totalUnits  Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  homestay Homestay  @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([homestayId])
+  @@map("rooms")
+}
+
+model Amenity {
+  id         String @id @default(uuid())
+  homestayId String
+  name       String
+
+  homestay Homestay @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+
+  @@unique([homestayId, name])
+  @@map("amenities")
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  homestayId  String
+  name        String
+  description String?
+  unitPrice   Int
+  included    Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  homestay        Homestay         @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+  bookingServices BookingService[]
+
+  @@index([homestayId])
+  @@map("services")
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  customerId      String
+  homestayId      String
+  roomId          String
+  guestName       String
+  guestPhone      String
+  guestCount      Int
+  checkIn         DateTime
+  checkOut        DateTime
+  status          BookingStatus @default(PENDING)
+  roomTotal       Int
+  serviceTotal    Int           @default(0)
+  taxTotal        Int           @default(0)
+  grandTotal      Int
+  proxyCreatedBy  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  customer UserProfile      @relation("CustomerBookings", fields: [customerId], references: [id])
+  homestay Homestay         @relation(fields: [homestayId], references: [id])
+  room     Room             @relation(fields: [roomId], references: [id])
+  services BookingService[]
+  payment  Payment?
+
+  @@index([customerId])
+  @@index([homestayId, status])
+  @@index([checkIn, checkOut])
+  @@map("bookings")
+}
+
+model BookingService {
+  id        String             @id @default(uuid())
+  bookingId String
+  serviceId String
+  name      String
+  quantity  Int
+  unitPrice Int
+  total     Int
+  status    ServiceOrderStatus @default(PREPARING)
+  createdAt DateTime           @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([bookingId])
+  @@map("booking_services")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique
+  provider      String
+  providerRef   String?
+  status        PaymentStatus @default(INITIATED)
+  amount        Int
+  checkoutUrl   String?
+  rawPayload    Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("payments")
+}
+
+model Article {
+  id        String        @id @default(uuid())
+  authorId  String
+  title     String
+  slug      String        @unique
+  excerpt   String
+  content   String
+  status    ArticleStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  author UserProfile @relation(fields: [authorId], references: [id])
+
+  @@index([status])
+  @@map("articles")
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  userId     String
+  homestayId String
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  user     UserProfile @relation(fields: [userId], references: [id])
+  homestay Homestay    @relation(fields: [homestayId], references: [id], onDelete: Cascade)
+
+  @@index([homestayId])
+  @@map("reviews")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  actor UserProfile? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
