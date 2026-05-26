@@ -1,6 +1,6 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, OnModuleInit, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { RedisService } from "../redis/redis.service";
 import {
   Article,
@@ -19,7 +19,7 @@ import {
 
 type BookingInput = Partial<Booking> & { serviceItems?: Array<{ serviceId: string; quantity: number }> };
 type SessionRecord = { token: string; userId: string; createdAt: string; expiresAt: string };
-type UserRecord = AuthenticatedUser & { googleSub?: string; createdAt: string; updatedAt: string };
+type UserRecord = AuthenticatedUser & { googleSub?: string; passwordHash?: string; createdAt: string; updatedAt: string };
 type HomestayRecord = Omit<Homestay, "type" | "amenities" | "includedServices" | "services" | "rooms" | "reviews"> & {
   type: string;
   amenities: string[];
@@ -101,6 +101,20 @@ export class BusinessStoreService implements OnModuleInit {
 
   async findAuthenticatedUser(authId: string, email?: string) {
     return this.findOrCreateGoogleUser({ googleSub: authId, email: email ?? "", name: email?.split("@")[0] });
+  }
+
+  async loginWithPassword(input: { email?: string; password?: string }) {
+    const email = this.email(input.email);
+    const password = String(input.password ?? "");
+    if (!password) throw new BadRequestException("Password is required");
+    const userId = await this.redis.get<string>(this.key("user_email", email));
+    if (!userId) throw new UnauthorizedException("Invalid email or password");
+    const user = await this.requireUser(userId);
+    if (user.banned) throw new ForbiddenException("Authenticated user has no active profile");
+    if (!user.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
+      throw new UnauthorizedException("Invalid email or password");
+    }
+    return this.mapUser(user);
   }
 
   async createSession(user: AuthenticatedUser) {
@@ -983,6 +997,20 @@ export class BusinessStoreService implements OnModuleInit {
     return email;
   }
 
+  private hashPassword(password: string) {
+    const salt = randomBytes(16).toString("base64url");
+    const hash = scryptSync(password, salt, 64).toString("base64url");
+    return `scrypt:${salt}:${hash}`;
+  }
+
+  private verifyPassword(password: string, stored: string) {
+    const [scheme, salt, hash] = stored.split(":");
+    if (scheme !== "scrypt" || !salt || !hash) return false;
+    const expected = Buffer.from(hash, "base64url");
+    const actual = scryptSync(password, salt, expected.length);
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  }
+
   private list(value: unknown) {
     if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
     if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -1027,6 +1055,18 @@ export class BusinessStoreService implements OnModuleInit {
       { id: "u-owner-staff-demo", name: "Lễ tân owner", email: "ownerstaff.demo@homestay.local", role: "OWNER_STAFF", banned: false, authLinked: false, createdAt: now, updatedAt: now },
       { id: "u-customer-demo", name: "Khách demo", email: "customer.demo@homestay.local", phone: "0901000001", role: "CUSTOMER", banned: false, authLinked: false, createdAt: now, updatedAt: now }
     ];
+    users.push({
+      id: "u-customer-password-demo",
+      name: "Khách demo",
+      email: "demo@gmail.com",
+      phone: "0901000002",
+      role: "CUSTOMER",
+      banned: false,
+      authLinked: true,
+      passwordHash: this.hashPassword("demo123"),
+      createdAt: now,
+      updatedAt: now
+    });
     await Promise.all(users.map((user) => this.upsertDemoUser(user)));
 
     const homestays: HomestayRecord[] = [
@@ -1371,6 +1411,7 @@ export class BusinessStoreService implements OnModuleInit {
         role: existing.role,
         banned: existing.banned,
         authLinked: existing.authLinked,
+        passwordHash: seed.passwordHash ?? existing.passwordHash,
         googleSub: existing.googleSub,
         createdAt: existing.createdAt,
         updatedAt: this.now()

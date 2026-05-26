@@ -40,6 +40,20 @@ export class AuthController {
     };
   }
 
+  @Public()
+  @Post("login")
+  async passwordLogin(@Body() body: { email?: string; password?: string }) {
+    const user = await this.store.loginWithPassword(body);
+    const session = await this.store.createSession(user);
+    return {
+      sessionToken: session.token,
+      expiresAt: session.expiresAt,
+      user,
+      role: user.role,
+      redirectTo: homeForRole(user.role)
+    };
+  }
+
   @UseGuards(RedisSessionAuthGuard)
   @Get("me")
   me(@Req() request: Request) {
