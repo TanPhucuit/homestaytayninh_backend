@@ -223,6 +223,52 @@ describe("business API flows", () => {
       body: { name: "Phòng test API", pricePerNight: 950000, capacity: 2, totalUnits: 1 }
     });
     expect(room.status).toBe(201);
+    const rate = await request<{ id: string; pricePerNight: number }>(`/owner/homestays/hs-ba-den/rooms/${room.body.id}/rates`, {
+      method: "POST",
+      role: "OWNER",
+      userId: "u-owner",
+      body: { startDate: "2026-07-01", endDate: "2026-07-10", pricePerNight: 1_250_000 }
+    });
+    expect(rate.status).toBe(201);
+    expect(rate.body.pricePerNight).toBe(1_250_000);
+    const rateUpdated = await request<{ pricePerNight: number }>(`/owner/homestays/hs-ba-den/rooms/${room.body.id}/rates/${rate.body.id}`, {
+      method: "PATCH",
+      role: "OWNER",
+      userId: "u-owner",
+      body: { pricePerNight: 1_350_000 }
+    });
+    expect(rateUpdated.body.pricePerNight).toBe(1_350_000);
+    expect((await request(`/owner/homestays/hs-ba-den/rooms/${room.body.id}/rates/${rate.body.id}`, {
+      method: "DELETE",
+      role: "OWNER",
+      userId: "u-owner"
+    })).status).toBe(200);
+    const roomDeleted = await request<{ active: boolean }>(`/owner/homestays/hs-ba-den/rooms/${room.body.id}`, {
+      method: "DELETE",
+      role: "OWNER",
+      userId: "u-owner"
+    });
+    expect(roomDeleted.body.active).toBe(false);
+
+    const image = await request<{ id: string; url: string }>("/owner/homestays/hs-ba-den/images", {
+      method: "POST",
+      role: "OWNER",
+      userId: "u-owner",
+      body: { url: "https://example.com/homestay.jpg", alt: "Ảnh test", position: 1 }
+    });
+    expect(image.status).toBe(201);
+    const imageUpdated = await request<{ alt: string }>(`/owner/homestays/hs-ba-den/images/${image.body.id}`, {
+      method: "PATCH",
+      role: "OWNER",
+      userId: "u-owner",
+      body: { alt: "Ảnh đã sửa" }
+    });
+    expect(imageUpdated.body.alt).toBe("Ảnh đã sửa");
+    expect((await request(`/owner/homestays/hs-ba-den/images/${image.body.id}`, {
+      method: "DELETE",
+      role: "OWNER",
+      userId: "u-owner"
+    })).status).toBe(200);
 
     const service = await request<{ id: string; active: boolean }>("/owner/homestays/hs-ba-den/services", {
       method: "POST",
@@ -237,6 +283,12 @@ describe("business API flows", () => {
       body: { active: false }
     });
     expect(serviceUpdated.body.active).toBe(false);
+    const serviceDeleted = await request<{ active: boolean }>(`/owner/homestays/hs-ba-den/services/${service.body.id}`, {
+      method: "DELETE",
+      role: "OWNER",
+      userId: "u-owner"
+    });
+    expect(serviceDeleted.body.active).toBe(false);
 
     const article = await request<{ id: string; status: string }>("/cms/articles", {
       method: "POST",

@@ -73,10 +73,15 @@ Owner / Owner Staff:
 
 - `GET/POST /api/owner/homestays`
 - `PATCH /api/owner/homestays/:id`
+- `DELETE /api/owner/homestays/:id`
+- `GET/POST /api/owner/homestays/:id/images`
+- `PATCH/DELETE /api/owner/homestays/:id/images/:imageId`
 - `GET/POST /api/owner/homestays/:id/rooms`
-- `PATCH /api/owner/homestays/:id/rooms/:roomId`
+- `PATCH/DELETE /api/owner/homestays/:id/rooms/:roomId`
+- `GET/POST /api/owner/homestays/:id/rooms/:roomId/rates`
+- `PATCH/DELETE /api/owner/homestays/:id/rooms/:roomId/rates/:rateId`
 - `GET/POST /api/owner/homestays/:id/services`
-- `PATCH /api/owner/homestays/:id/services/:serviceId`
+- `PATCH/DELETE /api/owner/homestays/:id/services/:serviceId`
 - `GET /api/owner/bookings`
 - `PATCH /api/owner/bookings/:id/status`
 - `POST /api/owner/proxy-bookings`

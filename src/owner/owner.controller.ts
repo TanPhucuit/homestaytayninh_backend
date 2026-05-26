@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
@@ -33,6 +33,36 @@ export class OwnerController {
     return this.store.updateHomestay(req.user!, homestayId, body);
   }
 
+  @Delete("homestays/:id")
+  @Roles("OWNER", "ADMIN")
+  async deleteHomestay(@Req() req: Request, @Param("id") homestayId: string) {
+    return this.store.deleteHomestay(req.user!, homestayId);
+  }
+
+  @Get("homestays/:id/images")
+  @Roles("OWNER", "ADMIN")
+  async images(@Req() req: Request, @Param("id") homestayId: string) {
+    return this.store.images(req.user!, homestayId);
+  }
+
+  @Post("homestays/:id/images")
+  @Roles("OWNER", "ADMIN")
+  async createImage(@Req() req: Request, @Param("id") homestayId: string, @Body() body: Record<string, unknown>) {
+    return this.store.createImage(req.user!, homestayId, body);
+  }
+
+  @Patch("homestays/:id/images/:imageId")
+  @Roles("OWNER", "ADMIN")
+  async updateImage(@Req() req: Request, @Param("id") homestayId: string, @Param("imageId") imageId: string, @Body() body: Record<string, unknown>) {
+    return this.store.updateImage(req.user!, homestayId, imageId, body);
+  }
+
+  @Delete("homestays/:id/images/:imageId")
+  @Roles("OWNER", "ADMIN")
+  async deleteImage(@Req() req: Request, @Param("id") homestayId: string, @Param("imageId") imageId: string) {
+    return this.store.deleteImage(req.user!, homestayId, imageId);
+  }
+
   @Get("homestays/:id/rooms")
   @Roles("OWNER", "ADMIN")
   async rooms(@Req() req: Request, @Param("id") homestayId: string) {
@@ -51,6 +81,36 @@ export class OwnerController {
     return this.store.updateRoom(req.user!, homestayId, roomId, body);
   }
 
+  @Delete("homestays/:id/rooms/:roomId")
+  @Roles("OWNER", "ADMIN")
+  async deleteRoom(@Req() req: Request, @Param("id") homestayId: string, @Param("roomId") roomId: string) {
+    return this.store.deleteRoom(req.user!, homestayId, roomId);
+  }
+
+  @Get("homestays/:id/rooms/:roomId/rates")
+  @Roles("OWNER", "ADMIN")
+  async roomRates(@Req() req: Request, @Param("id") homestayId: string, @Param("roomId") roomId: string) {
+    return this.store.roomRates(req.user!, homestayId, roomId);
+  }
+
+  @Post("homestays/:id/rooms/:roomId/rates")
+  @Roles("OWNER", "ADMIN")
+  async createRoomRate(@Req() req: Request, @Param("id") homestayId: string, @Param("roomId") roomId: string, @Body() body: Record<string, unknown>) {
+    return this.store.createRoomRate(req.user!, homestayId, roomId, body);
+  }
+
+  @Patch("homestays/:id/rooms/:roomId/rates/:rateId")
+  @Roles("OWNER", "ADMIN")
+  async updateRoomRate(@Req() req: Request, @Param("id") homestayId: string, @Param("roomId") roomId: string, @Param("rateId") rateId: string, @Body() body: Record<string, unknown>) {
+    return this.store.updateRoomRate(req.user!, homestayId, roomId, rateId, body);
+  }
+
+  @Delete("homestays/:id/rooms/:roomId/rates/:rateId")
+  @Roles("OWNER", "ADMIN")
+  async deleteRoomRate(@Req() req: Request, @Param("id") homestayId: string, @Param("roomId") roomId: string, @Param("rateId") rateId: string) {
+    return this.store.deleteRoomRate(req.user!, homestayId, roomId, rateId);
+  }
+
   @Get("homestays/:id/services")
   @Roles("OWNER", "ADMIN")
   async services(@Req() req: Request, @Param("id") homestayId: string) {
@@ -67,6 +127,12 @@ export class OwnerController {
   @Roles("OWNER", "ADMIN")
   async updateService(@Req() req: Request, @Param("id") homestayId: string, @Param("serviceId") serviceId: string, @Body() body: Record<string, unknown>) {
     return this.store.updateService(req.user!, homestayId, serviceId, body);
+  }
+
+  @Delete("homestays/:id/services/:serviceId")
+  @Roles("OWNER", "ADMIN")
+  async deleteService(@Req() req: Request, @Param("id") homestayId: string, @Param("serviceId") serviceId: string) {
+    return this.store.deleteService(req.user!, homestayId, serviceId);
   }
 
   @Get("bookings")

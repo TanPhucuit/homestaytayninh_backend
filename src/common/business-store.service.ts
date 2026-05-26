@@ -156,6 +156,70 @@ export class BusinessStoreService implements OnModuleDestroy {
     return this.mapHomestay(row);
   }
 
+  async deleteHomestay(user: DemoUser, homestayId: string) {
+    await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) {
+      const index = this.demo.homestays.findIndex((homestay) => homestay.id === homestayId);
+      if (index === -1) throw new NotFoundException("Homestay not found");
+      const [homestay] = this.demo.homestays.splice(index, 1);
+      return homestay;
+    }
+    try {
+      return this.mapHomestay(await this.prisma.homestay.delete({ where: { id: homestayId }, include: this.homestayInclude() }));
+    } catch {
+      throw new NotFoundException("Homestay not found");
+    }
+  }
+
+  async images(user: DemoUser, homestayId: string) {
+    const homestay = await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) return [{ id: "img-demo-1", homestayId, url: homestay.imageUrl, alt: homestay.name, position: 0 }];
+    return this.prisma.homestayImage.findMany({ where: { homestayId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] });
+  }
+
+  async createImage(user: DemoUser, homestayId: string, body: Record<string, unknown>) {
+    await this.assertCanManageHomestay(user, homestayId);
+    const url = String(body.url ?? "").trim();
+    if (!url) throw new BadRequestException("Image URL is required");
+    const position = Number(body.position ?? 0);
+    this.positive(position, "position", true);
+    if (!this.prisma) {
+      const homestay = this.demo.getHomestay(homestayId);
+      if (position === 0) homestay.imageUrl = url;
+      return { id: this.id("img"), homestayId, url, alt: String(body.alt ?? ""), position };
+    }
+    const image = await this.prisma.homestayImage.create({
+      data: { id: randomUUID(), homestayId, url, alt: String(body.alt ?? ""), position }
+    });
+    if (position === 0) await this.prisma.homestay.update({ where: { id: homestayId }, data: { imageUrl: url } });
+    return image;
+  }
+
+  async updateImage(user: DemoUser, homestayId: string, imageId: string, body: Record<string, unknown>) {
+    await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) return { id: imageId, homestayId, url: String(body.url ?? ""), alt: String(body.alt ?? ""), position: Number(body.position ?? 0) };
+    const existing = await this.prisma.homestayImage.findFirst({ where: { id: imageId, homestayId } });
+    if (!existing) throw new NotFoundException("Image not found");
+    const data: Record<string, unknown> = {};
+    if (body.url !== undefined) data.url = String(body.url);
+    if (body.alt !== undefined) data.alt = String(body.alt);
+    if (body.position !== undefined) {
+      this.positive(Number(body.position), "position", true);
+      data.position = Number(body.position);
+    }
+    const image = await this.prisma.homestayImage.update({ where: { id: imageId }, data });
+    if (image.position === 0) await this.prisma.homestay.update({ where: { id: homestayId }, data: { imageUrl: image.url } });
+    return image;
+  }
+
+  async deleteImage(user: DemoUser, homestayId: string, imageId: string) {
+    await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) return { id: imageId, homestayId, deleted: true };
+    const existing = await this.prisma.homestayImage.findFirst({ where: { id: imageId, homestayId } });
+    if (!existing) throw new NotFoundException("Image not found");
+    return this.prisma.homestayImage.delete({ where: { id: imageId } });
+  }
+
   async rooms(user: DemoUser, homestayId: string) {
     const homestay = await this.assertCanManageHomestay(user, homestayId);
     return homestay.rooms;
@@ -203,6 +267,57 @@ export class BusinessStoreService implements OnModuleDestroy {
     return this.prisma.room.update({ where: { id: roomId }, data });
   }
 
+  async deleteRoom(user: DemoUser, homestayId: string, roomId: string) {
+    await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) return this.demo.updateRoom(homestayId, roomId, { active: false });
+    const existing = await this.prisma.room.findFirst({ where: { id: roomId, homestayId } });
+    if (!existing) throw new NotFoundException("Room not found");
+    return this.prisma.room.update({ where: { id: roomId }, data: { active: false } });
+  }
+
+  async roomRates(user: DemoUser, homestayId: string, roomId: string) {
+    await this.assertRoomBelongsToHomestay(user, homestayId, roomId);
+    if (!this.prisma) return [];
+    return this.prisma.roomRate.findMany({ where: { roomId }, orderBy: { startDate: "asc" } });
+  }
+
+  async createRoomRate(user: DemoUser, homestayId: string, roomId: string, body: Record<string, unknown>) {
+    await this.assertRoomBelongsToHomestay(user, homestayId, roomId);
+    const pricePerNight = Number(body.pricePerNight);
+    this.positive(pricePerNight, "pricePerNight", true);
+    const { startDate, endDate } = this.dateRange(String(body.startDate), String(body.endDate));
+    if (!this.prisma) return { id: this.id("rate"), roomId, startDate: startDate.toISOString().slice(0, 10), endDate: endDate.toISOString().slice(0, 10), pricePerNight };
+    return this.prisma.roomRate.create({
+      data: { id: randomUUID(), roomId, startDate, endDate, pricePerNight }
+    });
+  }
+
+  async updateRoomRate(user: DemoUser, homestayId: string, roomId: string, rateId: string, body: Record<string, unknown>) {
+    await this.assertRoomBelongsToHomestay(user, homestayId, roomId);
+    if (!this.prisma) return { id: rateId, roomId, ...body };
+    const existing = await this.prisma.roomRate.findFirst({ where: { id: rateId, roomId } });
+    if (!existing) throw new NotFoundException("Room rate not found");
+    const data: Record<string, unknown> = {};
+    if (body.pricePerNight !== undefined) {
+      this.positive(Number(body.pricePerNight), "pricePerNight", true);
+      data.pricePerNight = Number(body.pricePerNight);
+    }
+    if (body.startDate !== undefined || body.endDate !== undefined) {
+      const { startDate, endDate } = this.dateRange(String(body.startDate ?? existing.startDate), String(body.endDate ?? existing.endDate));
+      data.startDate = startDate;
+      data.endDate = endDate;
+    }
+    return this.prisma.roomRate.update({ where: { id: rateId }, data });
+  }
+
+  async deleteRoomRate(user: DemoUser, homestayId: string, roomId: string, rateId: string) {
+    await this.assertRoomBelongsToHomestay(user, homestayId, roomId);
+    if (!this.prisma) return { id: rateId, roomId, deleted: true };
+    const existing = await this.prisma.roomRate.findFirst({ where: { id: rateId, roomId } });
+    if (!existing) throw new NotFoundException("Room rate not found");
+    return this.prisma.roomRate.delete({ where: { id: rateId } });
+  }
+
   async services(user: DemoUser, homestayId: string) {
     const homestay = await this.assertCanManageHomestay(user, homestayId);
     return [...homestay.includedServices, ...homestay.services];
@@ -242,6 +357,14 @@ export class BusinessStoreService implements OnModuleDestroy {
     if (body.included !== undefined) data.included = Boolean(body.included);
     if (body.active !== undefined) data.active = Boolean(body.active);
     return this.prisma.service.update({ where: { id: serviceId }, data });
+  }
+
+  async deleteService(user: DemoUser, homestayId: string, serviceId: string) {
+    await this.assertCanManageHomestay(user, homestayId);
+    if (!this.prisma) return this.demo.updateService(homestayId, serviceId, { active: false });
+    const service = await this.prisma.service.findFirst({ where: { id: serviceId, homestayId } });
+    if (!service) throw new NotFoundException("Service not found");
+    return this.prisma.service.update({ where: { id: serviceId }, data: { active: false } });
   }
 
   async visibleBookings(user: DemoUser): Promise<Booking[]> {
@@ -551,7 +674,7 @@ export class BusinessStoreService implements OnModuleDestroy {
   }
 
   private homestayInclude() {
-    return { rooms: true, amenities: true, services: true, reviews: true } as const;
+    return { rooms: true, amenities: true, services: true, reviews: true, images: true } as const;
   }
 
   private mapHomestay(row: any): Homestay {
@@ -560,7 +683,8 @@ export class BusinessStoreService implements OnModuleDestroy {
       amenities: row.amenities.map((amenity: { name: string }) => amenity.name),
       includedServices: row.services.filter((service: Service) => service.included),
       services: row.services.filter((service: Service) => !service.included),
-      reviews: row.reviews
+      reviews: row.reviews,
+      images: row.images ?? []
     };
   }
 
@@ -596,6 +720,22 @@ export class BusinessStoreService implements OnModuleDestroy {
   private positive(value: number, name: string, allowZero = false) {
     const valid = Number.isInteger(value) && (allowZero ? value >= 0 : value > 0);
     if (!valid) throw new BadRequestException(`${name} must be ${allowZero ? "a non-negative" : "a positive"} integer`);
+  }
+
+  private async assertRoomBelongsToHomestay(user: DemoUser, homestayId: string, roomId: string) {
+    const homestay = await this.assertCanManageHomestay(user, homestayId);
+    const room = homestay.rooms.find((item) => item.id === roomId);
+    if (!room) throw new NotFoundException("Room not found");
+    return room;
+  }
+
+  private dateRange(start: string, end: string) {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || endDate < startDate) {
+      throw new BadRequestException("End date must be on or after start date");
+    }
+    return { startDate, endDate };
   }
 
   private nights(checkIn: string, checkOut: string) {
