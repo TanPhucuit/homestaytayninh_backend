@@ -79,6 +79,7 @@ export class BusinessStoreService implements OnModuleInit {
         updatedAt: this.now()
       };
       await this.saveUser(updated);
+      if (updated.role === "CUSTOMER" && this.shouldSeedDemoData()) await this.ensureCustomerDemoBookings(updated);
       return this.mapUser(updated);
     }
 
@@ -94,6 +95,7 @@ export class BusinessStoreService implements OnModuleInit {
       updatedAt: this.now()
     };
     await this.saveUser(user);
+    if (this.shouldSeedDemoData()) await this.ensureCustomerDemoBookings(user);
     return this.mapUser(user);
   }
 
@@ -1017,16 +1019,16 @@ export class BusinessStoreService implements OnModuleInit {
   }
 
   private async seedDemoDataIfEmpty() {
-    if ((await this.redis.scard("idx:homestays")) > 0) return;
     const now = this.now();
     const users: UserRecord[] = [
       { id: "u-admin-demo", name: "Admin HTTN", email: "23521197@gm.uit.edu.vn", role: "ADMIN", banned: false, authLinked: false, createdAt: now, updatedAt: now },
       { id: "u-staff-demo", name: "Nhan vien noi dung", email: "staff.demo@homestay.local", role: "STAFF", banned: false, authLinked: false, createdAt: now, updatedAt: now },
       { id: "u-owner-demo", name: "Chu nha Ba Den", email: "owner.demo@homestay.local", role: "OWNER", banned: false, authLinked: false, createdAt: now, updatedAt: now },
+      { id: "u-owner-demo-2", name: "Chu nha ven ho", email: "owner2.demo@homestay.local", role: "OWNER", banned: false, authLinked: false, createdAt: now, updatedAt: now },
       { id: "u-owner-staff-demo", name: "Le tan owner", email: "ownerstaff.demo@homestay.local", role: "OWNER_STAFF", banned: false, authLinked: false, createdAt: now, updatedAt: now },
       { id: "u-customer-demo", name: "Khach demo", email: "customer.demo@homestay.local", phone: "0901000001", role: "CUSTOMER", banned: false, authLinked: false, createdAt: now, updatedAt: now }
     ];
-    await Promise.all(users.map((user) => this.saveUser(user)));
+    await Promise.all(users.map((user) => this.upsertDemoUser(user)));
 
     const homestays: HomestayRecord[] = [
       {
@@ -1058,6 +1060,66 @@ export class BusinessStoreService implements OnModuleInit {
         amenities: ["Wifi", "BBQ", "Xe dua don"],
         createdAt: now,
         updatedAt: now
+      },
+      {
+        id: "hs-ma-lo",
+        ownerId: "u-owner-demo",
+        name: "Glamping Ma Lo",
+        type: "Leu",
+        location: "Ma Lo, Tay Ninh",
+        description: "Leu glamping co san lua trai, view nui va goi chup anh binh minh.",
+        priceFrom: 360000,
+        capacity: 4,
+        rating: 4.7,
+        imageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "BBQ", "Lua trai", "Pet friendly"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-toa-thanh",
+        ownerId: "u-owner-demo-2",
+        name: "Can ho gan Toa Thanh",
+        type: "Phong",
+        location: "Hoa Thanh, Tay Ninh",
+        description: "Can ho nho gan trung tam, thuan tien di Toa Thanh va cho dem.",
+        priceFrom: 390000,
+        capacity: 3,
+        rating: 4.5,
+        imageUrl: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "May lanh", "May giat", "Gan trung tam"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-trang-bang-family",
+        ownerId: "u-owner-demo-2",
+        name: "Nha san vuon Trang Bang",
+        type: "Nha nguyen can",
+        location: "Trang Bang, Tay Ninh",
+        description: "Nha nguyen can rong, co bep lon va san cho tre em.",
+        priceFrom: 780000,
+        capacity: 8,
+        rating: 4.9,
+        imageUrl: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Bep", "Ho boi mini", "Bai dau xe"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-chau-thanh",
+        ownerId: "u-owner-demo",
+        name: "Farmstay Chau Thanh",
+        type: "Nha nguyen can",
+        location: "Chau Thanh, Tay Ninh",
+        description: "Farmstay trai nghiem vuon trai cay, nau an cung chu nha va dap xe quanh lang.",
+        priceFrom: 520000,
+        capacity: 5,
+        rating: 4.4,
+        imageUrl: "https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Bep", "Xe dap", "Vuon trai cay"],
+        createdAt: now,
+        updatedAt: now
       }
     ];
     for (const homestay of homestays) {
@@ -1065,12 +1127,18 @@ export class BusinessStoreService implements OnModuleInit {
       await this.redis.sadd("idx:homestays", homestay.id);
       await this.redis.sadd(this.key("owner_homestays", homestay.ownerId), homestay.id);
     }
-    await this.redis.sadd(this.key("staff_assignments", "u-owner-staff-demo"), "hs-ba-den");
+    await this.redis.sadd(this.key("staff_assignments", "u-owner-staff-demo"), "hs-ba-den", "hs-ma-lo", "hs-trang-bang-family");
 
     const rooms: RoomRecord[] = [
       { id: "room-demo-family", homestayId: "hs-ba-den", name: "Phong gia dinh", roomType: "Family", pricePerNight: 650000, capacity: 6, totalUnits: 2, active: true, createdAt: now, updatedAt: now },
       { id: "room-demo-couple", homestayId: "hs-ba-den", name: "Phong doi view vuon", roomType: "Double", pricePerNight: 480000, capacity: 2, totalUnits: 3, active: true, createdAt: now, updatedAt: now },
-      { id: "room-demo-lake", homestayId: "hs-trang-bang", name: "Phong ven ho", roomType: "Double", pricePerNight: 420000, capacity: 3, totalUnits: 2, active: true, createdAt: now, updatedAt: now }
+      { id: "room-demo-lake", homestayId: "hs-trang-bang", name: "Phong ven ho", roomType: "Double", pricePerNight: 420000, capacity: 3, totalUnits: 2, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-lake-suite", homestayId: "hs-trang-bang", name: "Suite view ho", roomType: "Suite", pricePerNight: 680000, capacity: 4, totalUnits: 1, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-glamp-1", homestayId: "hs-ma-lo", name: "Leu doi sunrise", roomType: "Glamping", pricePerNight: 360000, capacity: 2, totalUnits: 6, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-glamp-2", homestayId: "hs-ma-lo", name: "Leu gia dinh", roomType: "Glamping Family", pricePerNight: 590000, capacity: 4, totalUnits: 3, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-toa-thanh", homestayId: "hs-toa-thanh", name: "Studio trung tam", roomType: "Studio", pricePerNight: 390000, capacity: 3, totalUnits: 4, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-trang-bang-house", homestayId: "hs-trang-bang-family", name: "Nguyen can 3 phong ngu", roomType: "House", pricePerNight: 780000, capacity: 8, totalUnits: 1, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-farm", homestayId: "hs-chau-thanh", name: "Phong vuon trai cay", roomType: "Garden", pricePerNight: 520000, capacity: 5, totalUnits: 2, active: true, createdAt: now, updatedAt: now }
     ];
     for (const room of rooms) {
       await this.redis.set(this.key("room", room.id), room);
@@ -1081,48 +1149,88 @@ export class BusinessStoreService implements OnModuleInit {
       { id: "svc-demo-breakfast", homestayId: "hs-ba-den", name: "Bua sang dia phuong", description: "Banh canh Trang Bang va ca phe", unitPrice: 90000, included: false, active: true, createdAt: now },
       { id: "svc-demo-bbq", homestayId: "hs-ba-den", name: "Set BBQ san vuon", description: "Set BBQ cho nhom 4 nguoi", unitPrice: 450000, included: false, active: true, createdAt: now },
       { id: "svc-demo-wifi", homestayId: "hs-ba-den", name: "Wifi toc do cao", unitPrice: 0, included: true, active: true, createdAt: now },
-      { id: "svc-demo-shuttle", homestayId: "hs-trang-bang", name: "Xe dua don", unitPrice: 250000, included: false, active: true, createdAt: now }
+      { id: "svc-demo-shuttle", homestayId: "hs-trang-bang", name: "Xe dua don", unitPrice: 250000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-lake-kayak", homestayId: "hs-trang-bang", name: "Thue kayak", unitPrice: 180000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-firewood", homestayId: "hs-ma-lo", name: "Set lua trai", unitPrice: 220000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-photo", homestayId: "hs-ma-lo", name: "Goi chup anh binh minh", unitPrice: 350000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-laundry", homestayId: "hs-toa-thanh", name: "Giat say nhanh", unitPrice: 70000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-family-meal", homestayId: "hs-trang-bang-family", name: "Com nha cho 6 nguoi", unitPrice: 520000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-bike", homestayId: "hs-chau-thanh", name: "Thue xe dap", unitPrice: 60000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-fruit", homestayId: "hs-chau-thanh", name: "Gio trai cay tai vuon", unitPrice: 150000, included: false, active: true, createdAt: now }
     ];
     for (const service of services) {
       await this.redis.set(this.key("service", service.id), service);
       await this.redis.sadd(this.key("homestay_services", service.homestayId), service.id);
     }
 
-    const booking: BookingRecord = {
-      id: "bk-demo-in-stay",
-      customerId: "u-customer-demo",
-      homestayId: "hs-ba-den",
-      roomId: "room-demo-family",
-      guestName: "Khach demo",
-      guestPhone: "0901000001",
-      guestCount: 2,
-      checkIn: "2030-06-01",
-      checkOut: "2030-06-03",
-      status: "IN_STAY",
-      roomTotal: 1300000,
-      serviceTotal: 450000,
-      taxTotal: 175000,
-      grandTotal: 1925000,
-      createdAt: now
-    };
-    await this.redis.set(this.key("booking", booking.id), booking);
-    await this.redis.sadd("idx:bookings", booking.id);
-    await this.redis.sadd(this.key("customer_bookings", booking.customerId), booking.id);
-    await this.saveBookingService({ id: "bs-demo-bbq", bookingId: booking.id, serviceId: "svc-demo-bbq", name: "Set BBQ san vuon", quantity: 1, unitPrice: 450000, total: 450000, status: "PREPARING" });
-    await this.savePayment({ id: "pay-demo-in-stay", bookingId: booking.id, provider: "mock-apipay", providerRef: "mock-demo", status: "PENDING", amount: booking.grandTotal, checkoutUrl: "https://pay.example.local/mock-demo" });
+    const images: HomestayImageRecord[] = homestays.flatMap((homestay, index) => [
+      { id: `img-${homestay.id}-main`, homestayId: homestay.id, url: homestay.imageUrl, alt: homestay.name, position: 0, createdAt: now },
+      { id: `img-${homestay.id}-room`, homestayId: homestay.id, url: index % 2 === 0 ? "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?auto=format&fit=crop&w=1200&q=80" : "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80", alt: `${homestay.name} room`, position: 1, createdAt: now }
+    ]);
+    for (const image of images) {
+      await this.redis.set(this.key("homestay_image", image.id), image);
+      await this.redis.sadd(this.key("homestay_images", image.homestayId), image.id);
+    }
 
-    const article: ArticleRecord = {
-      id: "art-demo-guide",
-      authorId: "u-staff-demo",
-      title: "Goi y lich trinh Tay Ninh 2 ngay",
-      slug: "lich-trinh-tay-ninh-2-ngay",
-      excerpt: "Tham quan nui Ba Den, toa thanh va thuong thuc dac san dia phuong.",
-      content: "Lich trinh goi y cho khach luu tru homestay tai Tay Ninh.",
-      status: "PUBLISHED",
-      createdAt: now,
-      updatedAt: now
-    };
-    await this.saveArticle(article);
+    const rates: RoomRateRecord[] = [
+      { id: "rate-family-summer", roomId: "room-demo-family", startDate: "2030-06-01", endDate: "2030-08-31", pricePerNight: 720000, createdAt: now },
+      { id: "rate-lake-holiday", roomId: "room-demo-lake-suite", startDate: "2030-06-01", endDate: "2030-08-31", pricePerNight: 760000, createdAt: now },
+      { id: "rate-house-weekend", roomId: "room-demo-trang-bang-house", startDate: "2030-01-01", endDate: "2030-12-31", pricePerNight: 860000, createdAt: now }
+    ];
+    for (const rate of rates) {
+      await this.redis.set(this.key("room_rate", rate.id), rate);
+      await this.redis.sadd(this.key("room_rates", rate.roomId), rate.id);
+    }
+
+    const reviews: Review[] = [
+      { id: "rv-ba-den-1", userId: "u-customer-demo", rating: 5, comment: "Phong sach, gan nui va chu nha huong dan rat ky." },
+      { id: "rv-lake-1", userId: "u-customer-demo", rating: 4, comment: "View ho dep, hop nghi cuoi tuan." },
+      { id: "rv-glamp-1", userId: "u-customer-demo", rating: 5, comment: "Lua trai va binh minh rat dang tien." }
+    ];
+    const reviewHomestays = ["hs-ba-den", "hs-trang-bang", "hs-ma-lo"];
+    for (const [index, review] of reviews.entries()) {
+      await this.redis.set(this.key("review", review.id), review);
+      await this.redis.sadd(this.key("homestay_reviews", reviewHomestays[index]), review.id);
+    }
+
+    await this.ensureCustomerDemoBookings(await this.requireUser("u-customer-demo"));
+
+    const articles: ArticleRecord[] = [
+      {
+        id: "art-demo-guide",
+        authorId: "u-staff-demo",
+        title: "Goi y lich trinh Tay Ninh 2 ngay",
+        slug: "lich-trinh-tay-ninh-2-ngay",
+        excerpt: "Tham quan nui Ba Den, toa thanh va thuong thuc dac san dia phuong.",
+        content: "Lich trinh goi y cho khach luu tru homestay tai Tay Ninh.",
+        status: "PUBLISHED",
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "art-demo-food",
+        authorId: "u-staff-demo",
+        title: "Mon ngon nen thu khi den Tay Ninh",
+        slug: "mon-ngon-tay-ninh",
+        excerpt: "Banh trang phoi suong, bo to va muoi tom la cac diem nhan am thuc.",
+        content: "Danh sach goi y mon ngon va cach sap xep lich an uong trong chuyen di.",
+        status: "PUBLISHED",
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "art-demo-draft",
+        authorId: "u-staff-demo",
+        title: "Ban nhap cam nang owner",
+        slug: "ban-nhap-cam-nang-owner",
+        excerpt: "Ban nhap de staff kiem tra thao tac CMS.",
+        content: "Noi dung nhap.",
+        status: "DRAFT",
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+    await Promise.all(articles.map((article) => this.saveArticle(article)));
     const report: ReportRecord = {
       id: "report-demo-open",
       reporterId: "u-customer-demo",
@@ -1133,5 +1241,94 @@ export class BusinessStoreService implements OnModuleInit {
     };
     await this.redis.set(this.key("report", report.id), report);
     await this.redis.sadd("idx:reports", report.id);
+  }
+
+  private async upsertDemoUser(seed: UserRecord) {
+    const existingId = await this.redis.get<string>(this.key("user_email", seed.email));
+    const existing = existingId ? await this.get<UserRecord>("user", existingId) : undefined;
+    if (existing) {
+      await this.saveUser({
+        ...seed,
+        id: existing.id,
+        role: existing.role,
+        banned: existing.banned,
+        authLinked: existing.authLinked,
+        googleSub: existing.googleSub,
+        createdAt: existing.createdAt,
+        updatedAt: this.now()
+      });
+      return;
+    }
+    await this.saveUser(seed);
+  }
+
+  private async ensureCustomerDemoBookings(customer: UserRecord) {
+    if (customer.role !== "CUSTOMER") return;
+    const suffix = customer.id.replace(/[^a-zA-Z0-9-]/g, "-");
+    const now = this.now();
+    const templates: Array<{
+      id: string;
+      homestayId: string;
+      roomId: string;
+      guestCount: number;
+      checkIn: string;
+      checkOut: string;
+      status: BookingStatus;
+      roomTotal: number;
+      service?: { id: string; name: string; quantity: number; unitPrice: number; status: BookingService["status"] };
+      paymentStatus: Payment["status"];
+    }> = [
+      { id: `bk-demo-${suffix}-pending`, homestayId: "hs-trang-bang", roomId: "room-demo-lake", guestCount: 2, checkIn: "2030-05-10", checkOut: "2030-05-12", status: "PENDING", roomTotal: 840000, service: { id: "svc-demo-shuttle", name: "Xe dua don", quantity: 1, unitPrice: 250000, status: "PREPARING" }, paymentStatus: "INITIATED" },
+      { id: `bk-demo-${suffix}-confirmed`, homestayId: "hs-ma-lo", roomId: "room-demo-glamp-2", guestCount: 4, checkIn: "2030-06-18", checkOut: "2030-06-20", status: "CONFIRMED", roomTotal: 1180000, service: { id: "svc-demo-firewood", name: "Set lua trai", quantity: 1, unitPrice: 220000, status: "PREPARING" }, paymentStatus: "PAID" },
+      { id: `bk-demo-${suffix}-in-stay`, homestayId: "hs-ba-den", roomId: "room-demo-family", guestCount: 2, checkIn: "2030-07-01", checkOut: "2030-07-03", status: "IN_STAY", roomTotal: 1300000, service: { id: "svc-demo-bbq", name: "Set BBQ san vuon", quantity: 1, unitPrice: 450000, status: "PREPARING" }, paymentStatus: "PENDING" },
+      { id: `bk-demo-${suffix}-completed`, homestayId: "hs-chau-thanh", roomId: "room-demo-farm", guestCount: 3, checkIn: "2030-04-01", checkOut: "2030-04-02", status: "COMPLETED", roomTotal: 520000, service: { id: "svc-demo-fruit", name: "Gio trai cay tai vuon", quantity: 1, unitPrice: 150000, status: "SERVED" }, paymentStatus: "PAID" },
+      { id: `bk-demo-${suffix}-cancelled`, homestayId: "hs-toa-thanh", roomId: "room-demo-toa-thanh", guestCount: 2, checkIn: "2030-03-01", checkOut: "2030-03-03", status: "CANCELLED", roomTotal: 780000, paymentStatus: "CANCELLED" }
+    ];
+    for (const item of templates) {
+      if (await this.redis.exists(this.key("booking", item.id))) continue;
+      const serviceTotal = item.service ? item.service.quantity * item.service.unitPrice : 0;
+      const taxTotal = Math.round((item.roomTotal + serviceTotal) * 0.1);
+      const booking: BookingRecord = {
+        id: item.id,
+        customerId: customer.id,
+        homestayId: item.homestayId,
+        roomId: item.roomId,
+        guestName: customer.name,
+        guestPhone: customer.phone ?? "0901000001",
+        guestCount: item.guestCount,
+        checkIn: item.checkIn,
+        checkOut: item.checkOut,
+        status: item.status,
+        roomTotal: item.roomTotal,
+        serviceTotal,
+        taxTotal,
+        grandTotal: item.roomTotal + serviceTotal + taxTotal,
+        createdAt: now
+      };
+      await this.redis.set(this.key("booking", booking.id), booking);
+      await this.redis.sadd("idx:bookings", booking.id);
+      await this.redis.sadd(this.key("customer_bookings", booking.customerId), booking.id);
+      if (item.service) {
+        await this.saveBookingService({
+          id: `bs-${item.id}`,
+          bookingId: booking.id,
+          serviceId: item.service.id,
+          name: item.service.name,
+          quantity: item.service.quantity,
+          unitPrice: item.service.unitPrice,
+          total: serviceTotal,
+          status: item.service.status
+        });
+      }
+      await this.savePayment({
+        id: `pay-${item.id}`,
+        bookingId: booking.id,
+        provider: "mock-apipay",
+        providerRef: `mock-${item.id}`,
+        status: item.paymentStatus,
+        amount: booking.grandTotal,
+        checkoutUrl: item.paymentStatus === "PAID" || item.paymentStatus === "CANCELLED" ? undefined : `https://pay.example.local/${item.id}`
+      });
+    }
   }
 }
