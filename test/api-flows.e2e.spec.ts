@@ -170,6 +170,36 @@ describe("business API flows", () => {
   });
 
   it("enforces validation and RBAC boundaries", async () => {
+    const cancellable = await request<{ id: string; status: string }>("/bookings", {
+      method: "POST",
+      role: "CUSTOMER",
+      userId: "u-customer",
+      body: {
+        homestayId: "hs-trang-bang",
+        roomId: "room-trang-bang-deluxe",
+        guestName: "Khách hủy thử",
+        guestPhone: "0902000002",
+        guestCount: 2,
+        checkIn: "2026-06-10",
+        checkOut: "2026-06-11"
+      }
+    });
+    expect(cancellable.status).toBe(201);
+    const customerCannotConfirm = await request(`/bookings/${cancellable.body.id}/status`, {
+      method: "PATCH",
+      role: "CUSTOMER",
+      userId: "u-customer",
+      body: { status: "CONFIRMED" }
+    });
+    expect(customerCannotConfirm.status).toBe(403);
+    const customerCancel = await request<{ status: string }>(`/bookings/${cancellable.body.id}/status`, {
+      method: "PATCH",
+      role: "CUSTOMER",
+      userId: "u-customer",
+      body: { status: "CANCELLED" }
+    });
+    expect(customerCancel.body.status).toBe("CANCELLED");
+
     const invalidDates = await request("/bookings", {
       method: "POST",
       role: "CUSTOMER",

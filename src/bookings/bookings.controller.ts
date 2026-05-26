@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
@@ -58,9 +58,12 @@ export class BookingsController {
   }
 
   @Patch("bookings/:id/status")
-  @Roles("OWNER_STAFF", "ADMIN")
+  @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async updateStatus(@Req() req: Request, @Param("id") bookingId: string, @Body() body: { status: BookingStatus }) {
     await this.store.assertCanAccessBooking(req.user!, bookingId);
+    if (req.user!.role === "CUSTOMER" && body.status !== "CANCELLED") {
+      throw new ForbiddenException("Customer can only cancel their own booking");
+    }
     const booking = await this.store.updateBookingStatus(bookingId, body.status, req.user!.id);
     await this.events.publish("booking.status_changed", { bookingId, status: booking.status });
     return booking;
