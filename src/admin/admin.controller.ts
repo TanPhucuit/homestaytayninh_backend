@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { SupabaseAuthGuard } from "../common/auth.guard";
+import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { UserRole } from "../common/domain";
 
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(RedisSessionAuthGuard)
 @Controller("admin")
 export class AdminController {
   constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}

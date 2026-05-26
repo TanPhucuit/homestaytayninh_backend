@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Public, Roles } from "../common/auth.decorator";
-import { SupabaseAuthGuard } from "../common/auth.guard";
+import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { ArticleStatus } from "../common/domain";
 
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(RedisSessionAuthGuard)
 @Controller("cms/articles")
 export class CmsController {
   constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}

@@ -1,12 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { SupabaseAuthGuard } from "../common/auth.guard";
+import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BookingStatus } from "../common/domain";
 import { BusinessStoreService } from "../common/business-store.service";
 import { EventsService } from "../events/events.service";
 
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(RedisSessionAuthGuard)
 @Controller()
 export class BookingsController {
   constructor(

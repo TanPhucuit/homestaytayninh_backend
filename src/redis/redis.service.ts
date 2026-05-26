@@ -4,15 +4,12 @@ import Redis, { RedisOptions } from "ioredis";
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private readonly client?: Redis;
+  private readonly client: Redis;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      if (process.env.NODE_ENV === "production") {
-        throw new Error("REDIS_URL is required in production.");
-      }
-      return;
+      throw new Error("REDIS_URL is required. Redis is the primary persistence store.");
     }
 
     const options: RedisOptions = {
@@ -27,22 +24,25 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    if (!this.client || this.client.status === "ready" || this.client.status === "connect") return;
+    if (this.client.status === "ready" || this.client.status === "connect") return;
     await this.client.connect();
+    await this.ping();
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.client?.quit();
+    await this.client.quit();
+  }
+
+  async ping(): Promise<string> {
+    return this.client.ping();
   }
 
   async get<T>(key: string): Promise<T | undefined> {
-    if (!this.client) return undefined;
     const value = await this.client.get(key);
     return value === null ? undefined : (JSON.parse(value) as T);
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    if (!this.client) return;
     const serialized = JSON.stringify(value);
     if (ttl && ttl > 0) {
       await this.client.set(key, serialized, "EX", ttl);
@@ -52,7 +52,28 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async del(key: string): Promise<number> {
-    if (!this.client) return 0;
     return this.client.del(key);
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return (await this.client.exists(key)) === 1;
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    if (!members.length) return 0;
+    return this.client.sadd(key, ...members);
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    if (!members.length) return 0;
+    return this.client.srem(key, ...members);
+  }
+
+  async smembers(key: string): Promise<string[]> {
+    return this.client.smembers(key);
+  }
+
+  async scard(key: string): Promise<number> {
+    return this.client.scard(key);
   }
 }

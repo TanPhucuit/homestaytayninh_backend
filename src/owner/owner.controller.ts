@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { SupabaseAuthGuard } from "../common/auth.guard";
+import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { BookingStatus } from "../common/domain";
 import { EventsService } from "../events/events.service";
 
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(RedisSessionAuthGuard)
 @Roles("OWNER", "OWNER_STAFF", "ADMIN")
 @Controller("owner")
 export class OwnerController {

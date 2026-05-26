@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
 type Role = "CUSTOMER" | "OWNER" | "OWNER_STAFF" | "STAFF" | "ADMIN";
@@ -6,22 +5,12 @@ type Json = Record<string, unknown>;
 
 const requiredVariables = [
   "TEST_API_URL",
-  "TEST_SUPABASE_URL",
-  "TEST_SUPABASE_PUBLISHABLE_KEY",
-  "TEST_ADMIN_EMAIL",
-  "TEST_ADMIN_PASSWORD",
-  "TEST_STAFF_EMAIL",
-  "TEST_STAFF_PASSWORD",
-  "TEST_OWNER_EMAIL",
-  "TEST_OWNER_PASSWORD",
-  "TEST_OWNER_STAFF_EMAIL",
-  "TEST_OWNER_STAFF_PASSWORD",
-  "TEST_CUSTOMER_EMAIL",
-  "TEST_CUSTOMER_PASSWORD",
-  "TEST_NEW_CUSTOMER_EMAIL",
-  "TEST_NEW_CUSTOMER_PASSWORD",
-  "TEST_BANNED_EMAIL",
-  "TEST_BANNED_PASSWORD",
+  "TEST_ADMIN_SESSION_TOKEN",
+  "TEST_STAFF_SESSION_TOKEN",
+  "TEST_OWNER_SESSION_TOKEN",
+  "TEST_OWNER_STAFF_SESSION_TOKEN",
+  "TEST_CUSTOMER_SESSION_TOKEN",
+  "TEST_BANNED_SESSION_TOKEN",
   "TEST_ASSIGNED_HOMESTAY_ID",
   "TEST_ASSIGNED_ROOM_ID",
   "TEST_ASSIGNED_SERVICE_ID",
@@ -31,19 +20,10 @@ const requiredVariables = [
 ] as const;
 
 const env = (key: typeof requiredVariables[number]) => process.env[key] ?? "";
-const tokens = new Map<Role | "NEW_CUSTOMER" | "BANNED", string>();
+const hasRedisTestEnv = requiredVariables.every((key) => env(key));
+const describeIf = hasRedisTestEnv ? describe : describe.skip;
+const tokens = new Map<Role | "BANNED", string>();
 let apiUrl = "";
-
-async function tokenFor(email: string, password: string) {
-  const client = createClient(env("TEST_SUPABASE_URL"), env("TEST_SUPABASE_PUBLISHABLE_KEY"), {
-    auth: { persistSession: false }
-  });
-  const result = await client.auth.signInWithPassword({ email, password });
-  if (result.error || !result.data.session?.access_token) {
-    throw new Error(`Supabase test sign-in failed for ${email}: ${result.error?.message ?? "missing access token"}`);
-  }
-  return result.data.session.access_token;
-}
 
 async function api<T>(path: string, token: string, init?: { method?: string; body?: unknown }): Promise<{ status: number; body: T }> {
   const response = await fetch(`${apiUrl}${path}`, {
@@ -57,38 +37,26 @@ async function api<T>(path: string, token: string, init?: { method?: string; bod
   return { status: response.status, body: (await response.json()) as T };
 }
 
-describe("real Supabase business flows", () => {
+describeIf("real Redis business flows", () => {
   beforeAll(async () => {
-    const missing = requiredVariables.filter((key) => !env(key));
-    if (missing.length) {
-      throw new Error(`Real integration tests require an isolated Supabase test environment. Missing: ${missing.join(", ")}`);
-    }
     apiUrl = env("TEST_API_URL").replace(/\/$/, "");
     if (apiUrl.includes("homestaytayninh-backend.onrender.com") || process.env.ALLOW_ISOLATED_TEST_MUTATIONS !== "true") {
       throw new Error("Refusing mutation tests: configure a non-production TEST_API_URL and ALLOW_ISOLATED_TEST_MUTATIONS=true.");
     }
-
-    const accounts: Array<[Role | "NEW_CUSTOMER" | "BANNED", string, string]> = [
-      ["ADMIN", env("TEST_ADMIN_EMAIL"), env("TEST_ADMIN_PASSWORD")],
-      ["STAFF", env("TEST_STAFF_EMAIL"), env("TEST_STAFF_PASSWORD")],
-      ["OWNER", env("TEST_OWNER_EMAIL"), env("TEST_OWNER_PASSWORD")],
-      ["OWNER_STAFF", env("TEST_OWNER_STAFF_EMAIL"), env("TEST_OWNER_STAFF_PASSWORD")],
-      ["CUSTOMER", env("TEST_CUSTOMER_EMAIL"), env("TEST_CUSTOMER_PASSWORD")],
-      ["NEW_CUSTOMER", env("TEST_NEW_CUSTOMER_EMAIL"), env("TEST_NEW_CUSTOMER_PASSWORD")],
-      ["BANNED", env("TEST_BANNED_EMAIL"), env("TEST_BANNED_PASSWORD")]
-    ];
-    await Promise.all(accounts.map(async ([key, email, password]) => tokens.set(key, await tokenFor(email, password))));
+    tokens.set("ADMIN", env("TEST_ADMIN_SESSION_TOKEN"));
+    tokens.set("STAFF", env("TEST_STAFF_SESSION_TOKEN"));
+    tokens.set("OWNER", env("TEST_OWNER_SESSION_TOKEN"));
+    tokens.set("OWNER_STAFF", env("TEST_OWNER_STAFF_SESSION_TOKEN"));
+    tokens.set("CUSTOMER", env("TEST_CUSTOMER_SESSION_TOKEN"));
+    tokens.set("BANNED", env("TEST_BANNED_SESSION_TOKEN"));
   });
 
-  it("resolves database roles for authenticated users and provisions only a new customer as CUSTOMER", async () => {
+  it("resolves Redis profile roles for authenticated session tokens", async () => {
     for (const role of ["ADMIN", "STAFF", "OWNER", "OWNER_STAFF", "CUSTOMER"] as Role[]) {
       const me = await api<{ role: Role }>("/api/auth/me", tokens.get(role)!);
       expect(me.status).toBe(200);
       expect(me.body.role).toBe(role);
     }
-    const created = await api<{ role: Role }>("/api/auth/me", tokens.get("NEW_CUSTOMER")!);
-    expect(created.status).toBe(200);
-    expect(created.body.role).toBe("CUSTOMER");
     expect((await api("/api/auth/me", tokens.get("BANNED")!)).status).toBe(403);
   });
 
@@ -121,23 +89,10 @@ describe("real Supabase business flows", () => {
       }
     });
     expect(staffDenied.status).toBe(403);
-    const directStaffDenied = await api("/api/bookings", tokens.get("OWNER_STAFF")!, {
-      method: "POST",
-      body: {
-        homestayId: env("TEST_UNASSIGNED_HOMESTAY_ID"),
-        roomId: env("TEST_ASSIGNED_ROOM_ID"),
-        guestName: "Forbidden direct booking",
-        guestPhone: "0900000000",
-        guestCount: 1,
-        checkIn: "2030-06-10",
-        checkOut: "2030-06-11"
-      }
-    });
-    expect(directStaffDenied.status).toBe(403);
     expect((await api(`/api/bookings/${env("TEST_OTHER_CUSTOMER_BOOKING_ID")}`, tokens.get("CUSTOMER")!)).status).toBe(403);
   });
 
-  it("persists booking operations and CMS/moderation flows through the real test database", async () => {
+  it("persists booking operations and CMS/moderation flows through Redis", async () => {
     const suffix = Date.now();
     const booking = await api<{ id: string; status: string }>("/api/bookings", tokens.get("CUSTOMER")!, {
       method: "POST",

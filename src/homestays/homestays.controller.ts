@@ -1,12 +1,12 @@
 import { BadRequestException, Controller, Get, Inject, Param, Query } from "@nestjs/common";
 import { CacheService } from "../cache/cache.service";
-import { SupabaseCatalogService } from "../supabase/supabase-catalog.service";
+import { BusinessStoreService } from "../common/business-store.service";
 
 @Controller("homestays")
 export class HomestaysController {
   constructor(
     @Inject(CacheService) private readonly cache: CacheService,
-    @Inject(SupabaseCatalogService) private readonly catalog: SupabaseCatalogService
+    @Inject(BusinessStoreService) private readonly store: BusinessStoreService
   ) {}
 
   @Get()
@@ -17,7 +17,7 @@ export class HomestaysController {
     const key = `homestays:${JSON.stringify(query)}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
-    const data = await this.catalog.list(query);
+    const data = await this.store.catalogList(query);
     await this.cache.set(key, data, 30);
     return data;
   }
@@ -27,7 +27,7 @@ export class HomestaysController {
     const key = `homestay:${id}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
-    const data = await this.catalog.detail(id);
+    const data = await this.store.catalogDetail(id);
     await this.cache.set(key, data, 60);
     return data;
   }
