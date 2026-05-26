@@ -10,7 +10,7 @@ Frontend repository: `https://github.com/TanPhucuit/homestaytayninh_frontend.git
 - Supabase PostgreSQL via Prisma
 - Upstash Redis through `REDIS_URL`
 - CloudAMQP RabbitMQ through `RABBITMQ_URL`
-- Mock ApiPay adapter until real credentials are available
+- ApiPay payment adapter. Keep `PAYMENT_PROVIDER=mock-apipay` until ApiPay endpoint/signature docs are confirmed.
 
 ## Run
 
@@ -42,6 +42,12 @@ Required env:
 - `REDIS_URL`
 - `RABBITMQ_URL`
 - `PAYMENT_PROVIDER`
+- `APIPAY_ACCESS_KEY`
+- `APIPAY_SECRET_KEY`
+- `APIPAY_BASE_URL`
+- `APIPAY_CREATE_PAYMENT_PATH`
+- `APIPAY_RETURN_URL`
+- `APIPAY_CALLBACK_URL`
 
 ## Demo API Surface
 
@@ -116,3 +122,22 @@ When `DATABASE_URL` is configured, booking, payment, owner, staff and admin endp
 Set `AUTH_MODE=supabase` on Render so guarded routes verify the Supabase bearer token, bind authenticated email accounts to `user_profiles`, and ignore role headers. New authenticated users are created with `CUSTOMER`; Owner, Owner Staff, Staff and Admin profiles must be created by Admin first. Do not expose `DATABASE_URL` or any Supabase secret key to the frontend.
 
 `GET /api/health` reports `persistence: "postgres"` when writes are connected to PostgreSQL. `GET /api/health/supabase` performs a read-only catalog check; it does not insert health records.
+
+## ApiPay
+
+ApiPay credentials must be configured only on the backend. Do not put access keys, secret keys, or non-public payment configuration in the Next.js frontend.
+
+Render env for ApiPay:
+
+```bash
+PAYMENT_PROVIDER="apipay"
+APIPAY_BASE_URL="<ApiPay API origin from provider docs>"
+APIPAY_CREATE_PAYMENT_PATH="<create-payment path from provider docs>"
+APIPAY_ACCESS_KEY="<ApiPay access key>"
+APIPAY_SECRET_KEY="<ApiPay secret key>"
+APIPAY_CURRENCY="VND"
+APIPAY_RETURN_URL="https://<vercel-domain>/payment/result"
+APIPAY_CALLBACK_URL="https://<render-domain>/api/payments/callback"
+```
+
+The current adapter sends a server-side JSON create-payment request with `x-access-key` and an HMAC-SHA256 `x-signature` header. Confirm these exact endpoint/header/signature requirements against ApiPay documentation before switching Render from `mock-apipay` to `apipay`.

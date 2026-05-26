@@ -11,6 +11,20 @@ services:
         value: production
       - key: PAYMENT_PROVIDER
         value: mock-apipay
+      - key: APIPAY_BASE_URL
+        sync: false
+      - key: APIPAY_CREATE_PAYMENT_PATH
+        sync: false
+      - key: APIPAY_ACCESS_KEY
+        sync: false
+      - key: APIPAY_SECRET_KEY
+        sync: false
+      - key: APIPAY_CURRENCY
+        value: VND
+      - key: APIPAY_RETURN_URL
+        sync: false
+      - key: APIPAY_CALLBACK_URL
+        sync: false
       - key: AUTH_MODE
         value: supabase
       - key: SUPABASE_URL

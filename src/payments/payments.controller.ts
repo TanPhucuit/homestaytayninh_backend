@@ -4,16 +4,15 @@ import { Public, Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { EventsService } from "../events/events.service";
-import { MockApiPayProvider } from "./payment-provider";
+import { PaymentProviderService } from "./payment-provider";
 
 @UseGuards(DemoAuthGuard)
 @Controller("payments")
 export class PaymentsController {
-  private readonly provider = new MockApiPayProvider();
-
   constructor(
     @Inject(BusinessStoreService) private readonly store: BusinessStoreService,
-    @Inject(EventsService) private readonly events: EventsService
+    @Inject(EventsService) private readonly events: EventsService,
+    @Inject(PaymentProviderService) private readonly provider: PaymentProviderService
   ) {}
 
   @Post("initiate")
@@ -35,7 +34,7 @@ export class PaymentsController {
       verified.bookingId
     );
     const payment = await this.store.upsertPayment(booking.id, {
-      provider: "mock-apipay",
+      provider: verified.provider,
       providerRef: verified.providerRef,
       status: verified.status,
       amount: booking.grandTotal
