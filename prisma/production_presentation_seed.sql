@@ -1,5 +1,5 @@
--- Production demo data for the Stitch-aligned frontend.
--- Idempotent: only upserts known demo records, does not delete user data.
+-- Production presentation data for the Stitch-aligned frontend.
+-- Idempotent: only upserts known presentation records, does not delete user data.
 
 insert into public.user_profiles (id, name, email, phone, role, banned)
 values

@@ -47,13 +47,10 @@ export class MockApiPayProvider implements PaymentProvider {
     };
   }
 
-  async verifyCallback(payload: Record<string, unknown>) {
-    return {
-      bookingId: String(payload.bookingId),
-      status: parseCallbackStatus(payload.status ?? "PAID"),
-      providerRef: String(payload.providerRef ?? `mock_${payload.bookingId}`),
-      provider: "mock-apipay"
-    };
+  async verifyCallback(
+    _payload: Record<string, unknown>,
+  ): Promise<{ bookingId: string; status: PaymentStatus; providerRef: string; provider: string }> {
+    throw new BadRequestException("Payment callbacks are disabled while PAYMENT_PROVIDER=mock-apipay");
   }
 
   async getStatus(): Promise<PaymentStatus> {
@@ -137,10 +134,14 @@ export class PaymentProviderService implements PaymentProvider {
   private readonly provider: PaymentProvider;
 
   constructor(@Inject(ConfigService) config: ConfigService) {
-    const configuredProvider = config.get<string>("PAYMENT_PROVIDER") ?? "mock-apipay";
-    this.provider = configuredProvider === "apipay" && config.get<string>("NODE_ENV") !== "test"
-      ? new ApiPayHttpProvider(config)
-      : new MockApiPayProvider();
+    const configuredProvider = config.get<string>("PAYMENT_PROVIDER");
+    if (configuredProvider === "apipay") {
+      this.provider = new ApiPayHttpProvider(config);
+    } else if (configuredProvider === "mock-apipay") {
+      this.provider = new MockApiPayProvider();
+    } else {
+      throw new Error("PAYMENT_PROVIDER must be explicitly set to apipay or mock-apipay.");
+    }
   }
 
   createPaymentIntent(input: { bookingId: string; amount: number }) {

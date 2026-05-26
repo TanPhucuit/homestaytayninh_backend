@@ -1,12 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { DemoAuthGuard } from "../common/auth.guard";
+import { SupabaseAuthGuard } from "../common/auth.guard";
 import { BookingStatus } from "../common/domain";
 import { BusinessStoreService } from "../common/business-store.service";
 import { EventsService } from "../events/events.service";
 
-@UseGuards(DemoAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @Controller()
 export class BookingsController {
   constructor(
@@ -18,6 +18,9 @@ export class BookingsController {
   @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async create(@Req() req: Request, @Body() body: Record<string, unknown>) {
     const user = req.user!;
+    if (user.role === "OWNER_STAFF") {
+      await this.store.assertCanOperateHomestay(user, String(body.homestayId ?? ""));
+    }
     const booking = await this.store.createBooking({
       ...body,
       customerId: user.role === "CUSTOMER" ? user.id : String(body.customerId ?? "u-customer"),

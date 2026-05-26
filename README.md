@@ -10,7 +10,7 @@ Frontend repository: `https://github.com/TanPhucuit/homestaytayninh_frontend.git
 - Supabase PostgreSQL via Prisma
 - Upstash Redis through `REDIS_URL`
 - CloudAMQP RabbitMQ through `RABBITMQ_URL`
-- ApiPay payment adapter. Keep `PAYMENT_PROVIDER=mock-apipay` until ApiPay endpoint/signature docs are confirmed.
+- ApiPay payment adapter. `PAYMENT_PROVIDER=mock-apipay` remains a temporary payment-provider adapter only until ApiPay endpoint/signature docs are confirmed; it is not used as business-data or authentication fallback and does not accept payment callbacks.
 
 ## Run
 
@@ -33,7 +33,6 @@ Use `render.yaml` or configure manually:
 
 Required env:
 
-- `AUTH_MODE=supabase`
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `DATABASE_URL`
@@ -49,7 +48,7 @@ Required env:
 - `APIPAY_RETURN_URL`
 - `APIPAY_CALLBACK_URL`
 
-## Demo API Surface
+## API Surface
 
 All routes use global prefix `/api`.
 
@@ -98,12 +97,7 @@ Staff / Admin:
 - `GET/POST/PATCH /api/cms/articles`
 - `POST /api/payments/:bookingId/manual-paid`
 
-Demo RBAC headers are available only while `AUTH_MODE` is not `supabase`:
-
-```bash
-x-user-id: u-admin
-x-user-role: ADMIN
-```
+All protected endpoints require a valid Supabase bearer token. Role authorization is read from the linked `user_profiles` record; request headers cannot impersonate a role.
 
 ## Database
 
@@ -113,13 +107,13 @@ npm run prisma:migrate
 npm run seed
 ```
 
-Production demo data used by the Stitch-aligned UI can be reapplied safely with:
+Production presentation data used by the Stitch-aligned UI can be reapplied safely with:
 
 ```bash
-psql "$DATABASE_URL" -f prisma/production_demo_seed.sql
+psql "$DATABASE_URL" -f prisma/production_presentation_seed.sql
 ```
 
-The script is idempotent and upserts demo catalog, services, booking states, payments and CMS articles without deleting existing data.
+The script is idempotent and upserts presentation catalog, services, booking states, payments and CMS articles without deleting existing data. These are persisted records for rendering the UI, not an in-memory fallback.
 
 Applied Supabase migrations:
 
@@ -130,11 +124,32 @@ Applied Supabase migrations:
 
 The public catalog endpoints `GET /api/homestays` and `GET /api/homestays/:id` read Supabase directly when `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are configured. Public Data API access is read-only through RLS.
 
-When `DATABASE_URL` is configured, booking, payment, owner, staff and admin endpoints persist with server-side Prisma. Without it, the API falls back to its in-memory demo store for local previews and tests.
+`DATABASE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are required at runtime. All catalog, booking, payment, owner, staff and admin flows use Supabase/PostgreSQL data; the server fails startup if persistent storage or authentication configuration is absent.
 
-Set `AUTH_MODE=supabase` on Render so guarded routes verify the Supabase bearer token, bind authenticated email accounts to `user_profiles`, and ignore role headers. New authenticated users are created with `CUSTOMER`; Owner, Owner Staff, Staff and Admin profiles must be created by Admin first. Do not expose `DATABASE_URL` or any Supabase secret key to the frontend.
+Guarded routes verify the Supabase bearer token and bind authenticated email accounts to `user_profiles`. New authenticated users are created with `CUSTOMER`; Owner, Owner Staff, Staff and Admin profiles must be assigned in the database through Admin workflows. An existing linked profile keeps its assigned role at login. Do not expose `DATABASE_URL` or any Supabase secret key to the frontend.
 
-`GET /api/health` reports `persistence: "postgres"` when writes are connected to PostgreSQL. `GET /api/health/supabase` performs a read-only catalog check; it does not insert health records.
+`GET /api/health` reports `persistence: "postgres"`. `GET /api/health/supabase` performs a read-only catalog check; it does not insert health records.
+
+## Real Integration Tests
+
+Business-flow tests run only against an isolated Supabase branch or test project and a backend configured for that same database/Auth project. They never use in-memory state or role impersonation headers.
+
+Create the seven test Auth accounts in the isolated Supabase project first. Configure its backend/database and provide `TEST_API_URL`, `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY` plus email/password pairs for Admin, Staff, Owner, Owner Staff, Customer, a new Customer and a banned Customer. Seed the regular presentation records and isolated RBAC fixtures:
+
+```powershell
+npm run seed
+$env:ALLOW_ISOLATED_TEST_MUTATIONS="true"
+$env:TEST_ASSIGNED_HOMESTAY_ID="hs-ba-den"
+$env:TEST_ASSIGNED_ROOM_ID="room-ba-den-family"
+$env:TEST_ASSIGNED_SERVICE_ID="svc-bbq"
+$env:TEST_UNASSIGNED_HOMESTAY_ID="hs-test-unassigned"
+$env:TEST_OTHER_CUSTOMER_BOOKING_ID="bk-test-other"
+$env:TEST_OPEN_REPORT_ID="report-test-open"
+npm run seed:test
+npm test
+```
+
+Use the equivalent environment-variable commands for the deployment shell that runs tests. `TEST_NEW_CUSTOMER_EMAIL` must not be pre-seeded as a profile; its first `/api/auth/me` call verifies default `CUSTOMER` provisioning. The test harness refuses the production Render URL and fails fast when test-project credentials are missing.
 
 ## ApiPay
 
@@ -154,3 +169,5 @@ APIPAY_CALLBACK_URL="https://<render-domain>/api/payments/callback"
 ```
 
 The current adapter sends a server-side JSON create-payment request with `x-access-key` and an HMAC-SHA256 `x-signature` header. Confirm these exact endpoint/header/signature requirements against ApiPay documentation before switching Render from `mock-apipay` to `apipay`.
+
+While `PAYMENT_PROVIDER=mock-apipay`, payment initiation may render a pending checkout state for UI presentation, but callback settlement is intentionally rejected. Only the real `apipay` adapter may accept a payment-provider callback.

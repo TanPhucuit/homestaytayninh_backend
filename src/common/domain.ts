@@ -4,7 +4,7 @@ export type ServiceOrderStatus = "PREPARING" | "SERVED";
 export type PaymentStatus = "INITIATED" | "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 export type ArticleStatus = "DRAFT" | "PUBLISHED";
 
-export interface DemoUser {
+export interface AuthenticatedUser {
   id: string;
   name: string;
   email: string;

@@ -4,31 +4,28 @@ import { Reflector } from "@nestjs/core";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { PUBLIC_KEY, ROLES_KEY } from "./auth.decorator";
 import { BusinessStoreService } from "./business-store.service";
-import { DemoUser, UserRole } from "./domain";
+import { AuthenticatedUser, UserRole } from "./domain";
 import { supabaseServerOptions } from "../supabase/supabase-client-options";
 
 declare module "express-serve-static-core" {
   interface Request {
-    user?: DemoUser;
+    user?: AuthenticatedUser;
   }
 }
 
 @Injectable()
-export class DemoAuthGuard implements CanActivate {
-  private readonly supabase?: SupabaseClient;
-  private readonly supabaseAuth: boolean;
+export class SupabaseAuthGuard implements CanActivate {
+  private readonly supabase: SupabaseClient;
 
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(ConfigService) config: ConfigService,
     @Inject(BusinessStoreService) private readonly store: BusinessStoreService
   ) {
-    this.supabaseAuth = config.get<string>("AUTH_MODE") === "supabase";
     const url = config.get<string>("SUPABASE_URL");
     const key = config.get<string>("SUPABASE_PUBLISHABLE_KEY");
-    if (this.supabaseAuth && url && key) {
-      this.supabase = createClient(url, key, supabaseServerOptions);
-    }
+    if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required.");
+    this.supabase = createClient(url, key, supabaseServerOptions);
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,7 +37,7 @@ export class DemoAuthGuard implements CanActivate {
       context.getClass()
     ]);
 
-    const user = this.supabaseAuth ? await this.fromSupabase(request.headers.authorization) : this.fromDemoHeaders(request.headers);
+    const user = await this.fromSupabase(request.headers.authorization);
 
     request.user = user;
     if (!roles?.length) return true;
@@ -48,18 +45,7 @@ export class DemoAuthGuard implements CanActivate {
     throw new ForbiddenException(`Role ${user.role} cannot access this resource`);
   }
 
-  private fromDemoHeaders(headers: Record<string, string | string[] | undefined>): DemoUser {
-    return {
-      id: String(headers["x-user-id"] ?? "u-customer"),
-      name: String(headers["x-user-name"] ?? "Demo User"),
-      email: String(headers["x-user-email"] ?? "demo@homestay.vn"),
-      role: String(headers["x-user-role"] ?? "CUSTOMER") as UserRole,
-      banned: false
-    };
-  }
-
   private async fromSupabase(authorization?: string) {
-    if (!this.supabase) throw new UnauthorizedException("Supabase authentication is not configured");
     const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined;
     if (!token) throw new UnauthorizedException("Bearer token is required");
     const { data, error } = await this.supabase.auth.getUser(token);

@@ -23,20 +23,16 @@ interface CatalogHomestayRow {
 
 @Injectable()
 export class SupabaseCatalogService {
-  private readonly client: SupabaseClient | null;
+  private readonly client: SupabaseClient;
 
   constructor(@Inject(ConfigService) config: ConfigService) {
     const url = config.get<string>("SUPABASE_URL") ?? config.get<string>("NEXT_PUBLIC_SUPABASE_URL");
     const key = config.get<string>("SUPABASE_PUBLISHABLE_KEY") ?? config.get<string>("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-    this.client = url && key ? createClient(url, key, supabaseServerOptions) : null;
-  }
-
-  get enabled() {
-    return this.client !== null;
+    if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required.");
+    this.client = createClient(url, key, supabaseServerOptions);
   }
 
   async list(query: Record<string, string | undefined>): Promise<Homestay[]> {
-    if (!this.client) return [];
     let request = this.client
       .from("homestays")
       .select("*, rooms(*), amenities(name), services(*), reviews(*)");
@@ -49,7 +45,6 @@ export class SupabaseCatalogService {
   }
 
   async detail(id: string): Promise<Homestay> {
-    if (!this.client) throw new ServiceUnavailableException("Supabase catalog is not configured");
     const response = await this.client
       .from("homestays")
       .select("*, rooms(*), amenities(name), services(*), reviews(*)")

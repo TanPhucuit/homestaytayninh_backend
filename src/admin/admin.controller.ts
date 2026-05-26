@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { DemoAuthGuard } from "../common/auth.guard";
+import { SupabaseAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { UserRole } from "../common/domain";
 
-@UseGuards(DemoAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @Controller("admin")
 export class AdminController {
   constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}
@@ -41,22 +42,22 @@ export class AdminController {
 
   @Patch("users/:id")
   @Roles("ADMIN")
-  async updateUser(@Param("id") userId: string, @Body() body: { role?: UserRole; banned?: boolean }) {
+  async updateUser(@Req() req: Request, @Param("id") userId: string, @Body() body: { role?: UserRole; banned?: boolean }) {
     if (body.role) await this.store.setRole(userId, body.role);
-    if (typeof body.banned === "boolean") return this.store.banUser(userId, body.banned);
+    if (typeof body.banned === "boolean") return this.store.moderateUser(req.user!, userId, body.banned);
     return (await this.store.users()).find((user) => user.id === userId);
   }
 
   @Post("users/:id/ban")
   @Roles("ADMIN", "STAFF")
-  async ban(@Param("id") userId: string) {
-    return this.store.banUser(userId, true);
+  async ban(@Req() req: Request, @Param("id") userId: string) {
+    return this.store.moderateUser(req.user!, userId, true);
   }
 
   @Post("users/:id/unban")
   @Roles("ADMIN", "STAFF")
-  async unban(@Param("id") userId: string) {
-    return this.store.banUser(userId, false);
+  async unban(@Req() req: Request, @Param("id") userId: string) {
+    return this.store.moderateUser(req.user!, userId, false);
   }
 
   @Post("users/:id/role")

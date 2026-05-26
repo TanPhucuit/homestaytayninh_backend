@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { DemoAuthGuard } from "../common/auth.guard";
+import { SupabaseAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { ArticleStatus } from "../common/domain";
 
-@UseGuards(DemoAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @Controller("cms/articles")
 export class CmsController {
   constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}
@@ -17,9 +18,9 @@ export class CmsController {
 
   @Post()
   @Roles("STAFF", "ADMIN")
-  async create(@Body() body: Record<string, unknown>) {
+  async create(@Req() req: Request, @Body() body: Record<string, unknown>) {
     return this.store.createArticle({
-      authorId: "u-staff",
+      authorId: req.user!.id,
       title: String(body.title ?? "Bài viết mới"),
       slug: String(body.slug ?? `post-${Date.now()}`),
       excerpt: String(body.excerpt ?? ""),

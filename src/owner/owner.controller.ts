@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { DemoAuthGuard } from "../common/auth.guard";
+import { SupabaseAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { BookingStatus } from "../common/domain";
 import { EventsService } from "../events/events.service";
 
-@UseGuards(DemoAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @Roles("OWNER", "OWNER_STAFF", "ADMIN")
 @Controller("owner")
 export class OwnerController {
@@ -16,7 +16,7 @@ export class OwnerController {
   ) {}
 
   @Get("homestays")
-  @Roles("OWNER", "ADMIN")
+  @Roles("OWNER", "OWNER_STAFF", "ADMIN")
   async homestays(@Req() req: Request) {
     return this.store.visibleHomestays(req.user!);
   }
@@ -152,6 +152,7 @@ export class OwnerController {
   @Post("proxy-bookings")
   @Roles("OWNER_STAFF", "ADMIN")
   async proxyBooking(@Req() req: Request, @Body() body: Record<string, unknown>) {
+    await this.store.assertCanOperateHomestay(req.user!, String(body.homestayId ?? ""));
     const booking = await this.store.createBooking({
       ...body,
       customerId: String(body.customerId ?? "u-customer"),

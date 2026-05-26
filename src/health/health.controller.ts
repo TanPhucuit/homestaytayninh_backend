@@ -14,7 +14,7 @@ export class HealthController {
     return {
       ok: true,
       service: "homestaytayninh-backend",
-      persistence: this.store.persistent ? "postgres" : "demo",
+      persistence: "postgres",
       timestamp: new Date().toISOString()
     };
   }
