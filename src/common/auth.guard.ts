@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { PUBLIC_KEY, ROLES_KEY } from "./auth.decorator";
 import { BusinessStoreService } from "./business-store.service";
 import { DemoUser, UserRole } from "./domain";
+import { supabaseServerOptions } from "../supabase/supabase-client-options";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -26,7 +27,7 @@ export class DemoAuthGuard implements CanActivate {
     const url = config.get<string>("SUPABASE_URL");
     const key = config.get<string>("SUPABASE_PUBLISHABLE_KEY");
     if (this.supabaseAuth && url && key) {
-      this.supabase = createClient(url, key, { auth: { persistSession: false } });
+      this.supabase = createClient(url, key, supabaseServerOptions);
     }
   }
 

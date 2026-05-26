@@ -1,6 +1,7 @@
 import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { supabaseServerOptions } from "./supabase-client-options";
 
 export interface SupabaseHealthResult {
   ok: true;
@@ -15,7 +16,7 @@ export class SupabaseHealthService {
   constructor(@Inject(ConfigService) config: ConfigService) {
     const url = config.get<string>("SUPABASE_URL") ?? config.get<string>("NEXT_PUBLIC_SUPABASE_URL");
     const key = config.get<string>("SUPABASE_PUBLISHABLE_KEY") ?? config.get<string>("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-    this.client = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+    this.client = url && key ? createClient(url, key, supabaseServerOptions) : null;
   }
 
   async check(): Promise<SupabaseHealthResult> {
