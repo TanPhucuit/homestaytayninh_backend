@@ -1119,6 +1119,111 @@ export class BusinessStoreService implements OnModuleInit {
         amenities: ["Wifi", "Bep", "Xe dap", "Vuon trai cay"],
         createdAt: now,
         updatedAt: now
+      },
+      {
+        id: "hs-go-dau",
+        ownerId: "u-owner-demo-2",
+        name: "Bungalow Go Dau Riverside",
+        type: "Phong",
+        location: "Go Dau, Tay Ninh",
+        description: "Bungalow ven song, hop voi khach nghi duong ngan ngay va lam viec tu xa.",
+        priceFrom: 460000,
+        capacity: 4,
+        rating: 4.6,
+        imageUrl: "https://images.unsplash.com/photo-1601918774946-25832a4be0d6?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "View song", "May lanh", "Cafe sang"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-tan-bien",
+        ownerId: "u-owner-demo",
+        name: "Nha go Tan Bien",
+        type: "Nha nguyen can",
+        location: "Tan Bien, Tay Ninh",
+        description: "Nha go rieng tu gan rung, co bep ngoai troi va khu sinh hoat chung.",
+        priceFrom: 880000,
+        capacity: 10,
+        rating: 4.8,
+        imageUrl: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Bep", "BBQ", "San vuon", "Bai dau xe"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-dau-tieng-cabin",
+        ownerId: "u-owner-demo-2",
+        name: "Cabin ho Dau Tieng",
+        type: "Phong",
+        location: "Ho Dau Tieng, Tay Ninh",
+        description: "Cabin nho ven ho, co ban cong ngam hoang hon va dich vu picnic.",
+        priceFrom: 540000,
+        capacity: 2,
+        rating: 4.7,
+        imageUrl: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "View ho", "Picnic", "May lanh"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-moc-bai",
+        ownerId: "u-owner-demo",
+        name: "Transit Stay Moc Bai",
+        type: "Phong",
+        location: "Ben Cau, Tay Ninh",
+        description: "Luu tru ngan ngay gan Moc Bai, co dua don va check-in linh hoat.",
+        priceFrom: 320000,
+        capacity: 2,
+        rating: 4.3,
+        imageUrl: "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Dua don", "Check-in linh hoat", "May lanh"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-phuoc-dong",
+        ownerId: "u-owner-demo-2",
+        name: "Retreat Phuoc Dong",
+        type: "Leu",
+        location: "Phuoc Dong, Tay Ninh",
+        description: "Khu retreat yen tinh voi yoga sang, leu lon va bua toi san vuon.",
+        priceFrom: 610000,
+        capacity: 6,
+        rating: 4.9,
+        imageUrl: "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Yoga", "Lua trai", "Bua toi"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-city-loft",
+        ownerId: "u-owner-demo",
+        name: "City Loft Tay Ninh",
+        type: "Phong",
+        location: "TP Tay Ninh",
+        description: "Loft hien dai ngay trung tam, gan quan an va cac diem tham quan noi thanh.",
+        priceFrom: 500000,
+        capacity: 3,
+        rating: 4.5,
+        imageUrl: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Gan trung tam", "May giat", "May lanh"],
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "hs-orchard-villa",
+        ownerId: "u-owner-demo-2",
+        name: "Orchard Villa Trang Bang",
+        type: "Nha nguyen can",
+        location: "Trang Bang, Tay Ninh",
+        description: "Villa vuon cay co ho boi, phong bep rong va khu tiec ngoai troi.",
+        priceFrom: 1250000,
+        capacity: 12,
+        rating: 4.9,
+        imageUrl: "https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1200&q=80",
+        amenities: ["Wifi", "Ho boi", "Bep", "BBQ", "San vuon"],
+        createdAt: now,
+        updatedAt: now
       }
     ];
     for (const homestay of homestays) {
@@ -1137,7 +1242,14 @@ export class BusinessStoreService implements OnModuleInit {
       { id: "room-demo-glamp-2", homestayId: "hs-ma-lo", name: "Leu gia dinh", roomType: "Glamping Family", pricePerNight: 590000, capacity: 4, totalUnits: 3, active: true, createdAt: now, updatedAt: now },
       { id: "room-demo-toa-thanh", homestayId: "hs-toa-thanh", name: "Studio trung tam", roomType: "Studio", pricePerNight: 390000, capacity: 3, totalUnits: 4, active: true, createdAt: now, updatedAt: now },
       { id: "room-demo-trang-bang-house", homestayId: "hs-trang-bang-family", name: "Nguyen can 3 phong ngu", roomType: "House", pricePerNight: 780000, capacity: 8, totalUnits: 1, active: true, createdAt: now, updatedAt: now },
-      { id: "room-demo-farm", homestayId: "hs-chau-thanh", name: "Phong vuon trai cay", roomType: "Garden", pricePerNight: 520000, capacity: 5, totalUnits: 2, active: true, createdAt: now, updatedAt: now }
+      { id: "room-demo-farm", homestayId: "hs-chau-thanh", name: "Phong vuon trai cay", roomType: "Garden", pricePerNight: 520000, capacity: 5, totalUnits: 2, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-go-dau", homestayId: "hs-go-dau", name: "Bungalow ven song", roomType: "Bungalow", pricePerNight: 460000, capacity: 4, totalUnits: 4, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-tan-bien-house", homestayId: "hs-tan-bien", name: "Nha go 4 phong", roomType: "House", pricePerNight: 880000, capacity: 10, totalUnits: 1, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-cabin-lake", homestayId: "hs-dau-tieng-cabin", name: "Cabin hoang hon", roomType: "Cabin", pricePerNight: 540000, capacity: 2, totalUnits: 5, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-moc-bai", homestayId: "hs-moc-bai", name: "Phong transit", roomType: "Transit", pricePerNight: 320000, capacity: 2, totalUnits: 8, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-retreat", homestayId: "hs-phuoc-dong", name: "Leu retreat", roomType: "Retreat Tent", pricePerNight: 610000, capacity: 6, totalUnits: 3, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-city-loft", homestayId: "hs-city-loft", name: "Loft trung tam", roomType: "Loft", pricePerNight: 500000, capacity: 3, totalUnits: 6, active: true, createdAt: now, updatedAt: now },
+      { id: "room-demo-orchard-villa", homestayId: "hs-orchard-villa", name: "Villa nguyen can", roomType: "Villa", pricePerNight: 1250000, capacity: 12, totalUnits: 1, active: true, createdAt: now, updatedAt: now }
     ];
     for (const room of rooms) {
       await this.redis.set(this.key("room", room.id), room);
@@ -1155,7 +1267,14 @@ export class BusinessStoreService implements OnModuleInit {
       { id: "svc-demo-laundry", homestayId: "hs-toa-thanh", name: "Giat say nhanh", unitPrice: 70000, included: false, active: true, createdAt: now },
       { id: "svc-demo-family-meal", homestayId: "hs-trang-bang-family", name: "Com nha cho 6 nguoi", unitPrice: 520000, included: false, active: true, createdAt: now },
       { id: "svc-demo-bike", homestayId: "hs-chau-thanh", name: "Thue xe dap", unitPrice: 60000, included: false, active: true, createdAt: now },
-      { id: "svc-demo-fruit", homestayId: "hs-chau-thanh", name: "Gio trai cay tai vuon", unitPrice: 150000, included: false, active: true, createdAt: now }
+      { id: "svc-demo-fruit", homestayId: "hs-chau-thanh", name: "Gio trai cay tai vuon", unitPrice: 150000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-river-cafe", homestayId: "hs-go-dau", name: "Cafe ven song", unitPrice: 80000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-outdoor-kitchen", homestayId: "hs-tan-bien", name: "Bep ngoai troi", unitPrice: 300000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-picnic", homestayId: "hs-dau-tieng-cabin", name: "Set picnic hoang hon", unitPrice: 260000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-transit", homestayId: "hs-moc-bai", name: "Dua don Moc Bai", unitPrice: 180000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-yoga", homestayId: "hs-phuoc-dong", name: "Lop yoga sang", unitPrice: 120000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-city-food", homestayId: "hs-city-loft", name: "Tour an vat noi thanh", unitPrice: 220000, included: false, active: true, createdAt: now },
+      { id: "svc-demo-pool-party", homestayId: "hs-orchard-villa", name: "Set tiec ho boi", unitPrice: 850000, included: false, active: true, createdAt: now }
     ];
     for (const service of services) {
       await this.redis.set(this.key("service", service.id), service);
