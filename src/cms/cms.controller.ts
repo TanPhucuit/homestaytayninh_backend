@@ -1,26 +1,26 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { Roles } from "../common/auth.decorator";
 import { DemoAuthGuard } from "../common/auth.guard";
+import { BusinessStoreService } from "../common/business-store.service";
 import { ArticleStatus } from "../common/domain";
-import { DemoStoreService } from "../common/demo-store.service";
 
 @UseGuards(DemoAuthGuard)
 @Controller("cms/articles")
 export class CmsController {
-  constructor(@Inject(DemoStoreService) private readonly store: DemoStoreService) {}
+  constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}
 
   @Get()
   @Roles("STAFF", "ADMIN")
-  list() {
-    return this.store.articles;
+  async list() {
+    return this.store.articles();
   }
 
   @Post()
   @Roles("STAFF", "ADMIN")
-  create(@Body() body: Record<string, unknown>) {
+  async create(@Body() body: Record<string, unknown>) {
     return this.store.createArticle({
       authorId: "u-staff",
-      title: String(body.title ?? "Bai viet moi"),
+      title: String(body.title ?? "Bài viết mới"),
       slug: String(body.slug ?? `post-${Date.now()}`),
       excerpt: String(body.excerpt ?? ""),
       content: String(body.content ?? ""),
@@ -30,25 +30,25 @@ export class CmsController {
 
   @Patch(":id")
   @Roles("STAFF", "ADMIN")
-  update(@Param("id") id: string, @Body() body: Record<string, unknown>) {
+  async update(@Param("id") id: string, @Body() body: Record<string, unknown>) {
     return this.store.updateArticle(id, body);
   }
 
   @Delete(":id")
   @Roles("STAFF", "ADMIN")
-  delete(@Param("id") id: string) {
+  async delete(@Param("id") id: string) {
     return this.store.deleteArticle(id);
   }
 
   @Post(":id/publish")
   @Roles("STAFF", "ADMIN")
-  publish(@Param("id") id: string) {
+  async publish(@Param("id") id: string) {
     return this.store.setArticleStatus(id, "PUBLISHED");
   }
 
   @Post(":id/unpublish")
   @Roles("STAFF", "ADMIN")
-  unpublish(@Param("id") id: string) {
+  async unpublish(@Param("id") id: string) {
     return this.store.setArticleStatus(id, "DRAFT");
   }
 }

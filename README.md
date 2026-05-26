@@ -2,7 +2,7 @@
 
 NestJS backend for Homestay Tay Ninh. Deploy this repository to Render.
 
-Frontend repository: `https://github.com/TanPhucuit/homestaytayninh.git`
+Frontend repository: `https://github.com/TanPhucuit/homestaytayninh_frontend.git`
 
 ## Stack
 
@@ -33,6 +33,9 @@ Use `render.yaml` or configure manually:
 
 Required env:
 
+- `AUTH_MODE=supabase`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `DATABASE_URL`
 - `DIRECT_URL`
 - `WEB_ORIGIN`
@@ -84,7 +87,7 @@ Staff / Admin:
 - `GET/POST/PATCH /api/cms/articles`
 - `POST /api/payments/:bookingId/manual-paid`
 
-Demo RBAC headers:
+Demo RBAC headers are available only while `AUTH_MODE` is not `supabase`:
 
 ```bash
 x-user-id: u-admin
@@ -104,7 +107,12 @@ Applied Supabase migrations:
 - `prisma/migrations/20260526103000_homestay_mvp_schema/migration.sql`
 - `prisma/migrations/20260526104000_grant_public_catalog_read_access/migration.sql`
 - `prisma/migrations/20260526104500_index_proxy_booking_actor/migration.sql`
+- `prisma/migrations/20260526110000_lock_down_connection_health_checks/migration.sql`
 
 The public catalog endpoints `GET /api/homestays` and `GET /api/homestays/:id` read Supabase directly when `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are configured. Public Data API access is read-only through RLS.
 
-Booking, payment, owner, staff and admin mutation endpoints currently retain the in-memory demo store until server-side persistence is wired with `SUPABASE_SECRET_KEY` or Prisma database credentials. Do not expose the Supabase secret key to the frontend.
+When `DATABASE_URL` is configured, booking, payment, owner, staff and admin endpoints persist with server-side Prisma. Without it, the API falls back to its in-memory demo store for local previews and tests.
+
+Set `AUTH_MODE=supabase` on Render so guarded routes verify the Supabase bearer token, bind authenticated email accounts to `user_profiles`, and ignore role headers. New authenticated users are created with `CUSTOMER`; Owner, Owner Staff, Staff and Admin profiles must be created by Admin first. Do not expose `DATABASE_URL` or any Supabase secret key to the frontend.
+
+`GET /api/health` reports `persistence: "postgres"` when writes are connected to PostgreSQL. `GET /api/health/supabase` performs a read-only catalog check; it does not insert health records.

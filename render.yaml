@@ -11,6 +11,8 @@ services:
         value: production
       - key: PAYMENT_PROVIDER
         value: mock-apipay
+      - key: AUTH_MODE
+        value: supabase
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY

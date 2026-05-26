@@ -2,17 +2,10 @@ import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common"
 import { ConfigService } from "@nestjs/config";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export interface ConnectionHealthCheck {
-  id: string;
-  source: string;
-  message: string;
-  created_at: string;
-}
-
 export interface SupabaseHealthResult {
   ok: true;
-  inserted: ConnectionHealthCheck;
-  recent: ConnectionHealthCheck[];
+  catalogReadable: true;
+  homestayCount: number;
 }
 
 @Injectable()
@@ -30,31 +23,15 @@ export class SupabaseHealthService {
       throw new ServiceUnavailableException("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required");
     }
 
-    const insert = await this.client
-      .from("connection_health_checks")
-      .insert({ source: "backend", message: "NestJS backend connected to Supabase" })
-      .select("id, source, message, created_at")
-      .single<ConnectionHealthCheck>();
-
-    if (insert.error) {
-      throw new ServiceUnavailableException(insert.error.message);
-    }
-
-    const recent = await this.client
-      .from("connection_health_checks")
-      .select("id, source, message, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5)
-      .returns<ConnectionHealthCheck[]>();
-
-    if (recent.error) {
-      throw new ServiceUnavailableException(recent.error.message);
+    const response = await this.client.from("homestays").select("id", { count: "exact", head: true });
+    if (response.error) {
+      throw new ServiceUnavailableException(response.error.message);
     }
 
     return {
       ok: true,
-      inserted: insert.data,
-      recent: recent.data
+      catalogReadable: true,
+      homestayCount: response.count ?? 0
     };
   }
 }
