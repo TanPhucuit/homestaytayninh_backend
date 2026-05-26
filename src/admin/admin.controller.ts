@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Inject, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Roles } from "../common/auth.decorator";
-import { SupabaseAuthGuard } from "../common/auth.guard";
+import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
 import { UserRole } from "../common/domain";
 
-@UseGuards(SupabaseAuthGuard)
+@UseGuards(RedisSessionAuthGuard)
 @Controller("admin")
 export class AdminController {
   constructor(@Inject(BusinessStoreService) private readonly store: BusinessStoreService) {}
@@ -43,7 +43,7 @@ export class AdminController {
   @Patch("users/:id")
   @Roles("ADMIN")
   async updateUser(@Req() req: Request, @Param("id") userId: string, @Body() body: { role?: UserRole; banned?: boolean }) {
-    if (body.role) await this.store.setRole(userId, body.role);
+    if (body.role) await this.store.setRole(userId, body.role, req.user!);
     if (typeof body.banned === "boolean") return this.store.moderateUser(req.user!, userId, body.banned);
     return (await this.store.users()).find((user) => user.id === userId);
   }
@@ -62,7 +62,7 @@ export class AdminController {
 
   @Post("users/:id/role")
   @Roles("ADMIN")
-  async assignRole(@Param("id") userId: string, @Body() body: { role: UserRole }) {
-    return this.store.setRole(userId, body.role);
+  async assignRole(@Req() req: Request, @Param("id") userId: string, @Body() body: { role: UserRole }) {
+    return this.store.setRole(userId, body.role, req.user!);
   }
 }

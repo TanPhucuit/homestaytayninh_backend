@@ -1,44 +1,47 @@
 # Homestay Tay Ninh Backend
 
-NestJS backend for Homestay Tay Ninh. Deploy this repository to Render.
+NestJS backend for Homestay Tay Ninh. Deploy this repository to Render or another Node host with Redis.
 
 Frontend repository: `https://github.com/TanPhucuit/homestaytayninh_frontend.git`
 
 ## Stack
 
 - NestJS API
-- Supabase PostgreSQL via Prisma
-- Upstash Redis through `REDIS_URL`
+- Redis as primary persistence and session store through `REDIS_URL`
+- Google OAuth id-token verification through `GOOGLE_CLIENT_ID`
 - CloudAMQP RabbitMQ through `RABBITMQ_URL`
-- ApiPay payment adapter. `PAYMENT_PROVIDER=mock-apipay` remains a temporary payment-provider adapter only until ApiPay endpoint/signature docs are confirmed; it is not used as business-data or authentication fallback and does not accept payment callbacks.
+- ApiPay payment adapter. `PAYMENT_PROVIDER=mock-apipay` remains a temporary payment-provider adapter only until ApiPay endpoint/signature docs are confirmed.
 
 ## Run
 
 ```bash
 npm install
 cp .env.example .env
-npm run prisma:generate
 npm run dev
 ```
 
 API: `http://localhost:4000/api`
 
+Local Redis is available through `docker-compose.yml`:
+
+```bash
+docker compose up -d redis
+```
+
 ## Render
 
 Use `render.yaml` or configure manually:
 
-- Build command: `npm install && npx prisma generate && npm run build`
+- Build command: `npm install && npm run build`
 - Start command: `npm run start:prod`
 - Health check: `/api/health`
 
 Required env:
 
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `DATABASE_URL`
-- `DIRECT_URL`
 - `WEB_ORIGIN`
 - `REDIS_URL`
+- `SESSION_TTL_SECONDS`
+- `GOOGLE_CLIENT_ID`
 - `RABBITMQ_URL`
 - `PAYMENT_PROVIDER`
 - `APIPAY_ACCESS_KEY`
@@ -48,6 +51,20 @@ Required env:
 - `APIPAY_RETURN_URL`
 - `APIPAY_CALLBACK_URL`
 
+## Auth
+
+Protected endpoints require `Authorization: Bearer <htn_session>`.
+
+Login flow:
+
+1. Frontend performs Google OAuth and receives a Google `id_token`.
+2. Frontend posts the token to `POST /api/auth/google-login`.
+3. Backend verifies the token using Google `tokeninfo` and `GOOGLE_CLIENT_ID`.
+4. Backend creates or links a Redis profile by Google subject/email and stores an app session in Redis.
+5. Role authorization is read from Redis profile records. Request headers cannot impersonate a role.
+
+New Google users default to `CUSTOMER`. Admin-created profiles can later link to Google on first login by matching email.
+
 ## API Surface
 
 All routes use global prefix `/api`.
@@ -55,6 +72,13 @@ All routes use global prefix `/api`.
 Health:
 
 - `GET /api/health`
+- `GET /api/health/redis`
+
+Auth:
+
+- `POST /api/auth/google-login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
 
 Customer:
 
@@ -63,7 +87,6 @@ Customer:
 - `POST /api/bookings`
 - `GET /api/me/bookings`
 - `GET /api/bookings/:id`
-- `POST /api/bookings/:id/services`
 - `POST /api/payments/initiate`
 - `GET /api/payments/:bookingId/status`
 - `POST /api/payments/callback`
@@ -97,77 +120,31 @@ Staff / Admin:
 - `GET/POST/PATCH /api/cms/articles`
 - `POST /api/payments/:bookingId/manual-paid`
 
-All protected endpoints require a valid Supabase bearer token. Role authorization is read from the linked `user_profiles` record; request headers cannot impersonate a role.
+## Redis Data
 
-## Database
+Redis keys are namespaced by entity, for example `user:<id>`, `homestay:<id>`, `booking:<id>`, `session:<token>` and index sets such as `idx:homestays`, `idx:bookings`, `idx:users`.
 
-```bash
-npm run prisma:generate
-npm run prisma:migrate
-npm run seed
-```
+Demo presentation data is seeded automatically in non-production when Redis is empty. In production, demo seeding only runs with `REDIS_SEED_DEMO=true`. There is no in-memory fallback.
 
-Production presentation data used by the Stitch-aligned UI can be reapplied safely with:
+## Integration Tests
 
-```bash
-psql "$DATABASE_URL" -f prisma/production_presentation_seed.sql
-```
-
-The script is idempotent and upserts presentation catalog, services, booking states, payments and CMS articles without deleting existing data. These are persisted records for rendering the UI, not an in-memory fallback.
-
-Applied Supabase migrations:
-
-- `prisma/migrations/20260526103000_homestay_mvp_schema/migration.sql`
-- `prisma/migrations/20260526104000_grant_public_catalog_read_access/migration.sql`
-- `prisma/migrations/20260526104500_index_proxy_booking_actor/migration.sql`
-- `prisma/migrations/20260526110000_lock_down_connection_health_checks/migration.sql`
-
-The public catalog endpoints `GET /api/homestays` and `GET /api/homestays/:id` read Supabase directly when `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are configured. Public Data API access is read-only through RLS.
-
-`DATABASE_URL`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are required at runtime. All catalog, booking, payment, owner, staff and admin flows use Supabase/PostgreSQL data; the server fails startup if persistent storage or authentication configuration is absent.
-
-Guarded routes verify the Supabase bearer token and bind authenticated email accounts to `user_profiles`. New authenticated users are created with `CUSTOMER`; Owner, Owner Staff, Staff and Admin profiles must be assigned in the database through Admin workflows. An existing linked profile keeps its assigned role at login. Do not expose `DATABASE_URL` or any Supabase secret key to the frontend.
-
-`GET /api/health` reports `persistence: "postgres"`. `GET /api/health/supabase` performs a read-only catalog check; it does not insert health records.
-
-## Real Integration Tests
-
-Business-flow tests run only against an isolated Supabase branch or test project and a backend configured for that same database/Auth project. They never use in-memory state or role impersonation headers.
-
-Create the seven test Auth accounts in the isolated Supabase project first. Configure its backend/database and provide `TEST_API_URL`, `TEST_SUPABASE_URL`, `TEST_SUPABASE_PUBLISHABLE_KEY` plus email/password pairs for Admin, Staff, Owner, Owner Staff, Customer, a new Customer and a banned Customer. Seed the regular presentation records and isolated RBAC fixtures:
+`npm test` runs Redis integration tests only when a real isolated test API and real Redis session tokens are provided:
 
 ```powershell
-npm run seed
 $env:ALLOW_ISOLATED_TEST_MUTATIONS="true"
-$env:TEST_ASSIGNED_HOMESTAY_ID="hs-ba-den"
-$env:TEST_ASSIGNED_ROOM_ID="room-ba-den-family"
-$env:TEST_ASSIGNED_SERVICE_ID="svc-bbq"
-$env:TEST_UNASSIGNED_HOMESTAY_ID="hs-test-unassigned"
-$env:TEST_OTHER_CUSTOMER_BOOKING_ID="bk-test-other"
-$env:TEST_OPEN_REPORT_ID="report-test-open"
-npm run seed:test
+$env:TEST_API_URL="http://localhost:4000"
+$env:TEST_ADMIN_SESSION_TOKEN="<token>"
+$env:TEST_STAFF_SESSION_TOKEN="<token>"
+$env:TEST_OWNER_SESSION_TOKEN="<token>"
+$env:TEST_OWNER_STAFF_SESSION_TOKEN="<token>"
+$env:TEST_CUSTOMER_SESSION_TOKEN="<token>"
 npm test
 ```
 
-Use the equivalent environment-variable commands for the deployment shell that runs tests. `TEST_NEW_CUSTOMER_EMAIL` must not be pre-seeded as a profile; its first `/api/auth/me` call verifies default `CUSTOMER` provisioning. The test harness refuses the production Render URL and fails fast when test-project credentials are missing.
+Without those variables the mutation suite is skipped rather than fabricating sessions.
 
 ## ApiPay
 
 ApiPay credentials must be configured only on the backend. Do not put access keys, secret keys, or non-public payment configuration in the Next.js frontend.
-
-Render env for ApiPay:
-
-```bash
-PAYMENT_PROVIDER="apipay"
-APIPAY_BASE_URL="<ApiPay API origin from provider docs>"
-APIPAY_CREATE_PAYMENT_PATH="<create-payment path from provider docs>"
-APIPAY_ACCESS_KEY="<ApiPay access key>"
-APIPAY_SECRET_KEY="<ApiPay secret key>"
-APIPAY_CURRENCY="VND"
-APIPAY_RETURN_URL="https://<vercel-domain>/payment/result"
-APIPAY_CALLBACK_URL="https://<render-domain>/api/payments/callback"
-```
-
-The current adapter sends a server-side JSON create-payment request with `x-access-key` and an HMAC-SHA256 `x-signature` header. Confirm these exact endpoint/header/signature requirements against ApiPay documentation before switching Render from `mock-apipay` to `apipay`.
 
 While `PAYMENT_PROVIDER=mock-apipay`, payment initiation may render a pending checkout state for UI presentation, but callback settlement is intentionally rejected. Only the real `apipay` adapter may accept a payment-provider callback.

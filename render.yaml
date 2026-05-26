@@ -3,7 +3,7 @@ services:
     name: homestaytayninh-backend
     runtime: node
     plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm run start:prod
     healthCheckPath: /api/health
     envVars:
@@ -25,21 +25,17 @@ services:
         sync: false
       - key: APIPAY_CALLBACK_URL
         sync: false
-      - key: AUTH_MODE
-        value: supabase
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_PUBLISHABLE_KEY
-        sync: false
-      - key: SUPABASE_SECRET_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: DIRECT_URL
-        sync: false
       - key: WEB_ORIGIN
         sync: false
       - key: REDIS_URL
+        sync: false
+      - key: SESSION_TTL_SECONDS
+        value: "604800"
+      - key: REDIS_AUTO_SEED
+        value: "true"
+      - key: REDIS_SEED_DEMO
+        value: "false"
+      - key: GOOGLE_CLIENT_ID
         sync: false
       - key: RABBITMQ_URL
         sync: false

@@ -134,13 +134,13 @@ export class PaymentProviderService implements PaymentProvider {
   private readonly provider: PaymentProvider;
 
   constructor(@Inject(ConfigService) config: ConfigService) {
-    const configuredProvider = config.get<string>("PAYMENT_PROVIDER");
+    const configuredProvider = (config.get<string>("PAYMENT_PROVIDER") || "mock-apipay").trim();
     if (configuredProvider === "apipay") {
       this.provider = new ApiPayHttpProvider(config);
     } else if (configuredProvider === "mock-apipay") {
       this.provider = new MockApiPayProvider();
     } else {
-      throw new Error("PAYMENT_PROVIDER must be explicitly set to apipay or mock-apipay.");
+      throw new Error(`PAYMENT_PROVIDER must be apipay or mock-apipay. Received: ${configuredProvider}`);
     }
   }
 
