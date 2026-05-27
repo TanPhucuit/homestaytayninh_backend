@@ -1,5 +1,6 @@
-import { BadGatewayException, Body, Controller, Get, Inject, Logger, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Body, Controller, Get, Inject, Logger, Param, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
+import { Booking, PaymentStatus } from "../common/domain";
 import { Public, Roles } from "../common/auth.decorator";
 import { RedisSessionAuthGuard } from "../common/auth.guard";
 import { BusinessStoreService } from "../common/business-store.service";
@@ -10,6 +11,8 @@ import { PaymentProviderService } from "./payment-provider";
 @Controller("payments")
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
+  private readonly payableBookingStatuses = new Set<Booking["status"]>(["PENDING", "CONFIRMED", "IN_STAY"]);
+  private readonly retryablePaymentStatuses = new Set<PaymentStatus>(["INITIATED", "PENDING", "FAILED", "CANCELLED"]);
 
   constructor(
     @Inject(BusinessStoreService) private readonly store: BusinessStoreService,
@@ -21,6 +24,9 @@ export class PaymentsController {
   @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async initiate(@Req() req: Request, @Body() body: { bookingId: string }) {
     const booking = await this.store.assertCanAccessBooking(req.user!, body.bookingId);
+    if (!this.canCreatePayment(booking)) {
+      throw new BadRequestException("Đơn này không còn trong trạng thái có thể thanh toán.");
+    }
     let intent: Awaited<ReturnType<PaymentProviderService["createPaymentIntent"]>>;
     try {
       intent = await this.provider.createPaymentIntent({ bookingId: booking.id, amount: booking.grandTotal });
@@ -63,6 +69,10 @@ export class PaymentsController {
         ? await this.store.assertCanAccessBooking(systemUser, verified.bookingId)
         : await this.store.bookingByPaymentProviderRef(verified.provider, verified.providerRef);
       if (!booking) throw new Error(`No booking matched ApiPay webhook providerRef=${verified.providerRef}`);
+      if (booking.status === "CANCELLED" && verified.status !== "CANCELLED") {
+        this.logger.warn(`ApiPay webhook ignored for cancelled booking=${booking.id} incomingStatus=${verified.status} providerRef=${verified.providerRef}`);
+        return;
+      }
       const payment = await this.store.upsertPayment(booking.id, {
         provider: verified.provider,
         providerRef: verified.providerRef,
@@ -87,6 +97,9 @@ export class PaymentsController {
   @Roles("OWNER_STAFF", "ADMIN")
   async manualPaid(@Req() req: Request, @Param("bookingId") bookingId: string) {
     const booking = await this.store.assertCanAccessBooking(req.user!, bookingId);
+    if (!this.payableBookingStatuses.has(booking.status)) {
+      throw new BadRequestException("Đơn này không còn trong trạng thái có thể ghi nhận thanh toán.");
+    }
     const payment = await this.store.upsertPayment(booking.id, {
       provider: "manual",
       providerRef: `manual_${booking.id}`,
@@ -95,5 +108,9 @@ export class PaymentsController {
     }, req.user!.id);
     await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
     return payment;
+  }
+
+  private canCreatePayment(booking: Booking) {
+    return this.payableBookingStatuses.has(booking.status) && (!booking.payment || this.retryablePaymentStatuses.has(booking.payment.status));
   }
 }

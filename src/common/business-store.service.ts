@@ -631,6 +631,12 @@ export class BusinessStoreService implements OnModuleInit {
     }
     const next: BookingRecord = { ...booking, status };
     await this.redis.set(this.key("booking", bookingId), next);
+    if (status === "CANCELLED") {
+      const payment = await this.redis.get<Payment>(this.key("payment_booking", bookingId));
+      if (payment && payment.status !== "PAID") {
+        await this.savePayment({ ...payment, status: "CANCELLED", checkoutUrl: undefined, qrUrl: undefined });
+      }
+    }
     void actorId;
     return this.mapBooking(next);
   }
@@ -638,7 +644,10 @@ export class BusinessStoreService implements OnModuleInit {
   async upsertPayment(bookingId: string, payment: Omit<Payment, "id" | "bookingId">, actorId?: string) {
     const statuses: Payment["status"][] = ["INITIATED", "PENDING", "PAID", "FAILED", "CANCELLED"];
     if (!statuses.includes(payment.status)) throw new BadRequestException("Invalid payment status");
-    await this.require<BookingRecord>("booking", bookingId, "Booking not found");
+    const booking = await this.require<BookingRecord>("booking", bookingId, "Booking not found");
+    if (booking.status === "CANCELLED" && payment.status !== "CANCELLED") {
+      throw new BadRequestException("Cannot update payment for a cancelled booking");
+    }
     const existing = await this.redis.get<Payment>(this.key("payment_booking", bookingId));
     const row: Payment = { id: existing?.id ?? this.id("pay"), bookingId, ...payment };
     await this.savePayment(row);
