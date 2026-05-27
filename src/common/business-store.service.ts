@@ -337,6 +337,7 @@ export class BusinessStoreService implements OnModuleInit {
       homestayId,
       name: String(body.name ?? "Phòng mới"),
       roomType: String(body.roomType ?? homestay.type),
+      imageUrl: String(body.imageUrl || homestay.imageUrl),
       pricePerNight,
       capacity,
       totalUnits,
@@ -353,7 +354,7 @@ export class BusinessStoreService implements OnModuleInit {
     await this.assertRoomBelongsToHomestay(user, homestayId, roomId);
     const room = await this.require<RoomRecord>("room", roomId, "Room not found");
     const next = { ...room, updatedAt: this.now() };
-    for (const field of ["name", "roomType"] as const) {
+    for (const field of ["name", "roomType", "imageUrl"] as const) {
       if (body[field] !== undefined) next[field] = String(body[field]);
     }
     for (const field of ["pricePerNight", "capacity", "totalUnits"] as const) {
@@ -771,6 +772,7 @@ export class BusinessStoreService implements OnModuleInit {
       authorId: input.authorId ?? "u-staff-demo",
       title: String(input.title ?? "Bài viết mới"),
       slug: String(input.slug ?? this.id("article")),
+      imageUrl: String(input.imageUrl || "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1400&q=85"),
       excerpt: String(input.excerpt ?? ""),
       content: String(input.content ?? ""),
       status,
@@ -1116,6 +1118,7 @@ export class BusinessStoreService implements OnModuleInit {
           homestayId: homestay.id,
           name: plan.name,
           roomType: plan.roomType,
+          imageUrl: homestay.imageUrl,
           pricePerNight: plan.pricePerNight,
           capacity: plan.capacity,
           totalUnits: plan.totalUnits,
@@ -1136,12 +1139,16 @@ export class BusinessStoreService implements OnModuleInit {
   private async seedDemoDataIfEmpty() {
     const now = this.now();
     const users: UserRecord[] = [
-      { id: "u-admin-demo", name: "Admin HTTN", email: "23521197@gm.uit.edu.vn", role: "ADMIN", banned: false, authLinked: false, createdAt: now, updatedAt: now },
-      { id: "u-staff-demo", name: "Nhân viên nội dung", email: "staff.demo@homestay.local", role: "STAFF", banned: false, authLinked: false, createdAt: now, updatedAt: now },
-      { id: "u-owner-demo", name: "Chủ nhà Bà Đen", email: "owner.demo@homestay.local", role: "OWNER", banned: false, authLinked: false, createdAt: now, updatedAt: now },
-      { id: "u-owner-demo-2", name: "Chủ nhà ven hồ", email: "owner2.demo@homestay.local", role: "OWNER", banned: false, authLinked: false, createdAt: now, updatedAt: now },
-      { id: "u-owner-staff-demo", name: "Lễ tân owner", email: "ownerstaff.demo@homestay.local", role: "OWNER_STAFF", banned: false, authLinked: false, createdAt: now, updatedAt: now },
-      { id: "u-customer-demo", name: "Khách demo", email: "customer.demo@homestay.local", phone: "0901000001", role: "CUSTOMER", banned: false, authLinked: false, createdAt: now, updatedAt: now }
+      { id: "u-admin-demo", name: "Admin HTTN", email: "23521197@gm.uit.edu.vn", role: "ADMIN", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-admin-demo-email", name: "Admin Demo", email: "admindemo@gmail.com", role: "ADMIN", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-staff-demo", name: "Nhân viên nội dung", email: "staff.demo@homestay.local", role: "STAFF", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-content-staff-demo", name: "Content Staff Demo", email: "content_staffdemo@gmail.com", role: "STAFF", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-owner-demo", name: "Chủ nhà Bà Đen", email: "owner.demo@homestay.local", role: "OWNER", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-owner-demo-email", name: "Owner Demo", email: "ownerdemo@gmail.com", role: "OWNER", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-owner-demo-2", name: "Chủ nhà ven hồ", email: "owner2.demo@homestay.local", role: "OWNER", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-owner-staff-demo", name: "Lễ tân owner", email: "ownerstaff.demo@homestay.local", role: "OWNER_STAFF", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-manager-staff-demo", name: "Manager Staff Demo", email: "manager_staff@gmail.com", role: "OWNER_STAFF", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now },
+      { id: "u-customer-demo", name: "Khách demo", email: "customer.demo@homestay.local", phone: "0901000001", role: "CUSTOMER", banned: false, authLinked: true, passwordHash: this.hashPassword("demo123"), createdAt: now, updatedAt: now }
     ];
     users.push({
       id: "u-customer-password-demo",
@@ -1360,6 +1367,7 @@ export class BusinessStoreService implements OnModuleInit {
       await this.redis.sadd(this.key("owner_homestays", homestay.ownerId), homestay.id);
     }
     await this.redis.sadd(this.key("staff_assignments", "u-owner-staff-demo"), "hs-ba-den", "hs-ma-lo", "hs-trang-bang-family");
+    await this.redis.sadd(this.key("staff_assignments", "u-manager-staff-demo"), "hs-ba-den", "hs-trang-bang", "hs-ma-lo", "hs-trang-bang-family");
 
     const rooms: RoomRecord[] = [
       { id: "room-demo-family", homestayId: "hs-ba-den", name: "Phòng gia đình", roomType: "Gia đình", pricePerNight: 650000, capacity: 6, totalUnits: 2, active: true, createdAt: now, updatedAt: now },
@@ -1379,7 +1387,14 @@ export class BusinessStoreService implements OnModuleInit {
       { id: "room-demo-city-loft", homestayId: "hs-city-loft", name: "Loft trung tâm", roomType: "Loft", pricePerNight: 500000, capacity: 3, totalUnits: 6, active: true, createdAt: now, updatedAt: now },
       { id: "room-demo-orchard-villa", homestayId: "hs-orchard-villa", name: "Villa nguyên căn", roomType: "Villa", pricePerNight: 1250000, capacity: 12, totalUnits: 1, active: true, createdAt: now, updatedAt: now }
     ];
-    for (const room of rooms) {
+    const roomImages = [
+      "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1000&q=85",
+      "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1000&q=85"
+    ];
+    for (const [index, seedRoom] of rooms.entries()) {
+      const room = { ...seedRoom, imageUrl: seedRoom.imageUrl ?? roomImages[index % roomImages.length] };
       await this.redis.set(this.key("room", room.id), room);
       await this.redis.sadd(this.key("homestay_rooms", room.homestayId), room.id);
     }
@@ -1409,9 +1424,26 @@ export class BusinessStoreService implements OnModuleInit {
       await this.redis.sadd(this.key("homestay_services", service.homestayId), service.id);
     }
 
+    const tayNinhGallery = [
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1601918774946-25832a4be0d6?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1400&q=85",
+      "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1400&q=85"
+    ];
     const images: HomestayImageRecord[] = homestays.flatMap((homestay, index) => [
       { id: `img-${homestay.id}-main`, homestayId: homestay.id, url: homestay.imageUrl, alt: homestay.name, position: 0, createdAt: now },
-      { id: `img-${homestay.id}-room`, homestayId: homestay.id, url: index % 2 === 0 ? "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?auto=format&fit=crop&w=1200&q=80" : "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80", alt: `${homestay.name} room`, position: 1, createdAt: now }
+      ...Array.from({ length: 4 }, (_, offset) => ({
+        id: `img-${homestay.id}-${offset + 1}`,
+        homestayId: homestay.id,
+        url: tayNinhGallery[(index + offset) % tayNinhGallery.length],
+        alt: `${homestay.name} - góc ${offset + 1}`,
+        position: offset + 1,
+        createdAt: now
+      }))
     ]);
     for (const image of images) {
       await this.redis.set(this.key("homestay_image", image.id), image);
@@ -1447,6 +1479,7 @@ export class BusinessStoreService implements OnModuleInit {
         authorId: "u-staff-demo",
         title: "Gợi ý lịch trình Tây Ninh 2 ngày",
         slug: "lich-trinh-tay-ninh-2-ngay",
+        imageUrl: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1400&q=85",
         excerpt: "Tham quan núi Bà Đen, tòa thánh và thưởng thức đặc sản địa phương.",
         content: "Lịch trình gợi ý cho khách lưu trú homestay tại Tây Ninh.",
         status: "PUBLISHED",
@@ -1458,8 +1491,45 @@ export class BusinessStoreService implements OnModuleInit {
         authorId: "u-staff-demo",
         title: "Món ngon nên thử khi đến Tây Ninh",
         slug: "mon-ngon-tay-ninh",
+        imageUrl: "https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=1400&q=85",
         excerpt: "Bánh tráng phơi sương, bò tơ và muối tôm là các điểm nhấn ẩm thực.",
         content: "Danh sách gợi ý món ngon và cách sắp xếp lịch ăn uống trong chuyến đi.",
+        status: "PUBLISHED",
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "art-demo-ba-den",
+        authorId: "u-content-staff-demo",
+        title: "Săn mây núi Bà Đen và những khung giờ đẹp",
+        slug: "san-may-nui-ba-den",
+        imageUrl: "https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=1400&q=85",
+        excerpt: "Gợi ý thời điểm lên núi, chuẩn bị áo khoác và cách kết hợp lưu trú homestay gần chân núi.",
+        content: "Buổi sáng sớm và chiều muộn là hai khung giờ dễ có ánh sáng đẹp quanh núi Bà Đen. Du khách nên chuẩn bị áo khoác mỏng, nước uống và đặt homestay gần khu Thạnh Tân để di chuyển thuận tiện.",
+        status: "PUBLISHED",
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "art-demo-dau-tieng",
+        authorId: "u-content-staff-demo",
+        title: "Cuối tuần bên hồ Dầu Tiếng",
+        slug: "cuoi-tuan-ho-dau-tieng",
+        imageUrl: "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1400&q=85",
+        excerpt: "Lịch trình nhẹ nhàng cho nhóm bạn: ngắm hoàng hôn, BBQ sân vườn và ngủ cabin ven hồ.",
+        content: "Hồ Dầu Tiếng hợp với chuyến nghỉ 2 ngày 1 đêm. Ngày đầu nhận phòng, chuẩn bị BBQ và ngắm hoàng hôn. Sáng hôm sau có thể chèo kayak hoặc dạo quanh cung đường ven hồ.",
+        status: "PUBLISHED",
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "art-demo-toa-thanh",
+        authorId: "u-staff-demo",
+        title: "Đi Tòa Thánh Cao Đài trong nửa ngày",
+        slug: "toa-thanh-cao-dai-nua-ngay",
+        imageUrl: "https://images.unsplash.com/photo-1601918774946-25832a4be0d6?auto=format&fit=crop&w=1400&q=85",
+        excerpt: "Các lưu ý về trang phục, giờ tham quan và cách ghép lịch với bữa trưa đặc sản.",
+        content: "Khi tham quan Tòa Thánh Cao Đài, du khách nên chọn trang phục lịch sự và giữ trật tự trong khu vực hành lễ. Lịch trình nửa ngày có thể kết hợp ăn bánh canh Trảng Bàng hoặc bò tơ Tây Ninh.",
         status: "PUBLISHED",
         createdAt: now,
         updatedAt: now
@@ -1469,6 +1539,7 @@ export class BusinessStoreService implements OnModuleInit {
         authorId: "u-staff-demo",
         title: "Bản nháp cẩm nang owner",
         slug: "ban-nhap-cam-nang-owner",
+        imageUrl: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1400&q=85",
         excerpt: "Bản nháp để staff kiểm tra thao tác CMS.",
         content: "Nội dung nháp.",
         status: "DRAFT",

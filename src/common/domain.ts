@@ -37,6 +37,7 @@ export interface Room {
   homestayId: string;
   name: string;
   roomType: string;
+  imageUrl?: string;
   pricePerNight: number;
   capacity: number;
   totalUnits: number;
@@ -101,6 +102,7 @@ export interface Article {
   authorId: string;
   title: string;
   slug: string;
+  imageUrl?: string;
   excerpt: string;
   content: string;
   status: ArticleStatus;

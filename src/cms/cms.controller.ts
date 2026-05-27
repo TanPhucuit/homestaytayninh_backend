@@ -35,6 +35,7 @@ export class CmsController {
       authorId: req.user!.id,
       title: String(body.title ?? "Bài viết mới"),
       slug: String(body.slug ?? `post-${Date.now()}`),
+      imageUrl: String(body.imageUrl ?? ""),
       excerpt: String(body.excerpt ?? ""),
       content: String(body.content ?? ""),
       status: String(body.status ?? "DRAFT") as ArticleStatus
