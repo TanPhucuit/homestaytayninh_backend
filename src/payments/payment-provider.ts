@@ -68,7 +68,7 @@ export class ApiPayHttpProvider implements PaymentProvider {
 
   async createPaymentIntent(input: { bookingId: string; amount: number }): Promise<PaymentIntent> {
     const baseUrl = this.config.get<string>("APIPAY_BASE_URL") || "https://app.apipay.vn";
-    const path = this.config.get<string>("APIPAY_CREATE_PAYMENT_PATH") ?? "/v1/client/payment-requests/create";
+    const path = this.paymentRequestPath();
     const bankPublicId = this.required("APIPAY_BANK_PUBLIC_ID");
     const payload = {
       bankPublicId,
@@ -88,22 +88,23 @@ export class ApiPayHttpProvider implements PaymentProvider {
     });
     const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {
-      throw new Error(String(data.message ?? data.error ?? `ApiPay request failed with ${response.status}`));
+      throw new Error(this.describeApiPayError(response.status, data));
     }
 
-    const providerRef = String(data.paymentRequestId ?? data.providerRef ?? data.paymentId ?? data.id ?? input.bookingId);
-    const checkoutUrl = String(data.payUrl ?? data.checkoutUrl ?? data.paymentUrl ?? data.url ?? "");
+    const result = this.unwrapData(data);
+    const providerRef = String(result.paymentRequestId ?? result.providerRef ?? result.paymentId ?? result.id ?? input.bookingId);
+    const checkoutUrl = String(result.payUrl ?? result.checkoutUrl ?? result.paymentUrl ?? result.url ?? "");
     if (!checkoutUrl) {
-      throw new Error("ApiPay did not return a checkout/payment URL");
+      throw new Error(`ApiPay did not return a checkout/payment URL. Response keys: ${Object.keys(result).join(", ") || "none"}`);
     }
 
     return {
       provider: "apipay",
       providerRef,
-      status: normalizePaymentStatus(data.status ?? "PENDING"),
+      status: normalizePaymentStatus(result.status ?? data.status ?? "PENDING"),
       amount: input.amount,
       checkoutUrl,
-      qrUrl: typeof data.qrUrl === "string" ? data.qrUrl : undefined
+      qrUrl: typeof result.qrUrl === "string" ? result.qrUrl : undefined
     };
   }
 
@@ -156,6 +157,20 @@ export class ApiPayHttpProvider implements PaymentProvider {
     const value = this.config.get<string>(key);
     if (!value) throw new Error(`${key} is required when PAYMENT_PROVIDER=apipay`);
     return value;
+  }
+
+  private unwrapData(data: Record<string, unknown>) {
+    return data.data && typeof data.data === "object" ? data.data as Record<string, unknown> : data;
+  }
+
+  private describeApiPayError(status: number, data: Record<string, unknown>) {
+    const message = data.message ?? data.error ?? data.errors ?? data;
+    return `ApiPay request failed with ${status}: ${JSON.stringify(message)}`;
+  }
+
+  private paymentRequestPath() {
+    const configured = this.config.get<string>("APIPAY_CREATE_PAYMENT_PATH") ?? "/v1/client/payment-requests";
+    return configured.replace(/\/create\/?$/, "");
   }
 
   private credentials() {

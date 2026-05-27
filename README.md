@@ -155,7 +155,7 @@ Set these backend-only variables for production:
 ```env
 PAYMENT_PROVIDER=apipay
 APIPAY_BASE_URL=https://app.apipay.vn
-APIPAY_CREATE_PAYMENT_PATH=/v1/client/payment-requests/create
+APIPAY_CREATE_PAYMENT_PATH=/v1/client/payment-requests
 APIPAY_BANK_PUBLIC_ID=<bank-public-id>
 APIPAY_ACCESS_KEY=<access-key>
 APIPAY_SECRET_KEY=<secret-key>

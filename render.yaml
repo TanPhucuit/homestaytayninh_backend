@@ -14,7 +14,7 @@ services:
       - key: APIPAY_BASE_URL
         value: https://app.apipay.vn
       - key: APIPAY_CREATE_PAYMENT_PATH
-        value: /v1/client/payment-requests/create
+        value: /v1/client/payment-requests
       - key: APIPAY_BANK_PUBLIC_ID
         sync: false
       - key: APIPAY_ACCESS_KEY
