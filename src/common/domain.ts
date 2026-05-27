@@ -93,6 +93,7 @@ export interface Payment {
   status: PaymentStatus;
   amount: number;
   checkoutUrl?: string;
+  qrUrl?: string;
 }
 
 export interface Article {

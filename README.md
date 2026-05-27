@@ -10,7 +10,7 @@ Frontend repository: `https://github.com/TanPhucuit/homestaytayninh_frontend.git
 - Redis as primary persistence and session store through `REDIS_URL`
 - Google OAuth id-token verification through `GOOGLE_CLIENT_ID`
 - CloudAMQP RabbitMQ through `RABBITMQ_URL`
-- ApiPay payment adapter. `PAYMENT_PROVIDER=mock-apipay` remains a temporary payment-provider adapter only until ApiPay endpoint/signature docs are confirmed.
+- ApiPay payment adapter using `PAYMENT_PROVIDER=apipay` and the official client payment request endpoint.
 
 ## Run
 
@@ -44,10 +44,11 @@ Required env:
 - `GOOGLE_CLIENT_ID`
 - `RABBITMQ_URL`
 - `PAYMENT_PROVIDER`
-- `APIPAY_ACCESS_KEY`
-- `APIPAY_SECRET_KEY`
 - `APIPAY_BASE_URL`
 - `APIPAY_CREATE_PAYMENT_PATH`
+- `APIPAY_BANK_PUBLIC_ID`
+- `APIPAY_ACCESS_KEY`
+- `APIPAY_SECRET_KEY`
 - `APIPAY_RETURN_URL`
 - `APIPAY_CALLBACK_URL`
 
@@ -90,6 +91,8 @@ Customer:
 - `POST /api/payments/initiate`
 - `GET /api/payments/:bookingId/status`
 - `POST /api/payments/callback`
+- `POST /api/payments/apipay/webhook`
+- `POST /api/payments/apipay/webhooks`
 
 Owner / Owner Staff:
 
@@ -147,4 +150,20 @@ Without those variables the mutation suite is skipped rather than fabricating se
 
 ApiPay credentials must be configured only on the backend. Do not put access keys, secret keys, or non-public payment configuration in the Next.js frontend.
 
-While `PAYMENT_PROVIDER=mock-apipay`, payment initiation may render a pending checkout state for UI presentation, but callback settlement is intentionally rejected. Only the real `apipay` adapter may accept a payment-provider callback.
+Set these backend-only variables for production:
+
+```env
+PAYMENT_PROVIDER=apipay
+APIPAY_BASE_URL=https://app.apipay.vn
+APIPAY_CREATE_PAYMENT_PATH=/v1/client/payment-requests/create
+APIPAY_BANK_PUBLIC_ID=<bank-public-id>
+APIPAY_ACCESS_KEY=<access-key>
+APIPAY_SECRET_KEY=<secret-key>
+APIPAY_RETURN_URL=https://homestaytayninh-frontend.vercel.app/payment/result
+APIPAY_CALLBACK_URL=https://homestaytayninh-backend.onrender.com/api/payments/apipay/webhook
+APIPAY_WEBHOOK_CREATE_PATH=/v1/client/webhooks
+APIPAY_WEBHOOK_TYPE=IN
+```
+
+Payment initiation posts to ApiPay with `Authorization: Bearer base64(accessKey:secretKey)` and redirects customers using the returned `payUrl`.
+Admins can register the webhook with ApiPay by calling `POST /api/payments/apipay/webhooks` after the environment variables are configured.

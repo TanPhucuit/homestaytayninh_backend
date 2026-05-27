@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Logger, Param, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Public, Roles } from "../common/auth.decorator";
 import { RedisSessionAuthGuard } from "../common/auth.guard";
@@ -9,6 +9,8 @@ import { PaymentProviderService } from "./payment-provider";
 @UseGuards(RedisSessionAuthGuard)
 @Controller("payments")
 export class PaymentsController {
+  private readonly logger = new Logger(PaymentsController.name);
+
   constructor(
     @Inject(BusinessStoreService) private readonly store: BusinessStoreService,
     @Inject(EventsService) private readonly events: EventsService,
@@ -28,19 +30,41 @@ export class PaymentsController {
   @Post("callback")
   @Public()
   async callback(@Body() body: Record<string, unknown>) {
-    const verified = await this.provider.verifyCallback(body);
-    const booking = await this.store.assertCanAccessBooking(
-      { id: "system", name: "Payment webhook", email: "webhook@system.local", role: "ADMIN", banned: false },
-      verified.bookingId
-    );
-    const payment = await this.store.upsertPayment(booking.id, {
-      provider: verified.provider,
-      providerRef: verified.providerRef,
-      status: verified.status,
-      amount: booking.grandTotal
-    });
-    await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
-    return payment;
+    void this.processWebhook(body);
+    return { received: true };
+  }
+
+  @Post("apipay/webhook")
+  @Public()
+  async apipayWebhook(@Body() body: Record<string, unknown>) {
+    void this.processWebhook(body);
+    return { received: true };
+  }
+
+  @Post("apipay/webhooks")
+  @Roles("ADMIN")
+  async registerApiPayWebhook() {
+    return this.provider.registerWebhook();
+  }
+
+  private async processWebhook(body: Record<string, unknown>) {
+    try {
+      const verified = await this.provider.verifyCallback(body);
+      const booking = await this.store.assertCanAccessBooking(
+        { id: "system", name: "Payment webhook", email: "webhook@system.local", role: "ADMIN", banned: false },
+        verified.bookingId
+      );
+      const payment = await this.store.upsertPayment(booking.id, {
+        provider: verified.provider,
+        providerRef: verified.providerRef,
+        status: verified.status,
+        amount: booking.grandTotal
+      });
+      await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`ApiPay webhook processing failed: ${message}`);
+    }
   }
 
   @Get(":bookingId/status")
