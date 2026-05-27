@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Logger, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { BadGatewayException, Body, Controller, Get, Inject, Logger, Param, Post, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { Public, Roles } from "../common/auth.decorator";
 import { RedisSessionAuthGuard } from "../common/auth.guard";
@@ -21,7 +21,15 @@ export class PaymentsController {
   @Roles("CUSTOMER", "OWNER_STAFF", "ADMIN")
   async initiate(@Req() req: Request, @Body() body: { bookingId: string }) {
     const booking = await this.store.assertCanAccessBooking(req.user!, body.bookingId);
-    const intent = await this.provider.createPaymentIntent({ bookingId: booking.id, amount: booking.grandTotal });
+    let intent: Awaited<ReturnType<PaymentProviderService["createPaymentIntent"]>>;
+    try {
+      intent = await this.provider.createPaymentIntent({ bookingId: booking.id, amount: booking.grandTotal });
+      this.logger.log(`Payment link created for booking=${booking.id} amount=${booking.grandTotal} provider=${intent.provider}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Payment link creation failed for booking=${booking.id} amount=${booking.grandTotal}: ${message}`);
+      throw new BadGatewayException("Không thể tạo liên kết thanh toán lúc này. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.");
+    }
     const payment = await this.store.upsertPayment(booking.id, intent, req.user!.id);
     await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
     return payment;

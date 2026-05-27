@@ -52,7 +52,10 @@ export class BusinessStoreService implements OnModuleInit {
 
   async onModuleInit() {
     await this.redis.ping();
-    if (this.shouldSeedDemoData()) await this.seedDemoDataIfEmpty();
+    if (this.shouldSeedDemoData()) {
+      await this.seedDemoDataIfEmpty();
+      await this.ensureMinimumDemoRoomsForHomestays();
+    }
   }
 
   async findOrCreateGoogleUser(input: { googleSub: string; email: string; name?: string }) {
@@ -1043,6 +1046,74 @@ export class BusinessStoreService implements OnModuleInit {
   private shouldSeedDemoData() {
     if (process.env.REDIS_AUTO_SEED === "false") return false;
     return true;
+  }
+
+  private async ensureMinimumDemoRoomsForHomestays() {
+    const now = this.now();
+    const homestays = (await this.all<HomestayRecord>("idx:homestays", "homestay")).filter((item) => !item.deleted);
+    for (const homestay of homestays) {
+      if (homestay.capacity < 4) {
+        await this.redis.set(this.key("homestay", homestay.id), { ...homestay, capacity: 4, updatedAt: now });
+      }
+
+      const rooms = await this.roomsForHomestay(homestay.id);
+      const activeCapacities = new Set(rooms.filter((room) => room.active).map((room) => room.capacity));
+      const basePrice = Math.max(300000, Number(homestay.priceFrom || 500000));
+      const plans = [
+        {
+          suffix: "single",
+          name: "Phòng 1 người",
+          roomType: "Phòng 1 người",
+          capacity: 1,
+          totalUnits: 4,
+          pricePerNight: this.roundPrice(basePrice * 0.72)
+        },
+        {
+          suffix: "double",
+          name: "Phòng 2 người",
+          roomType: "Phòng 2 người",
+          capacity: 2,
+          totalUnits: 3,
+          pricePerNight: this.roundPrice(basePrice)
+        },
+        {
+          suffix: "quad",
+          name: "Phòng 4 người",
+          roomType: "Phòng 4 người",
+          capacity: 4,
+          totalUnits: 2,
+          pricePerNight: this.roundPrice(basePrice * 1.45)
+        }
+      ];
+
+      for (const plan of plans) {
+        if (activeCapacities.has(plan.capacity)) continue;
+        const id = `room-${homestay.id}-${plan.suffix}`;
+        const existing = await this.get<RoomRecord>("room", id);
+        if (existing) {
+          await this.redis.sadd(this.key("homestay_rooms", homestay.id), id);
+          continue;
+        }
+        const room: RoomRecord = {
+          id,
+          homestayId: homestay.id,
+          name: plan.name,
+          roomType: plan.roomType,
+          pricePerNight: plan.pricePerNight,
+          capacity: plan.capacity,
+          totalUnits: plan.totalUnits,
+          active: true,
+          createdAt: now,
+          updatedAt: now
+        };
+        await this.redis.set(this.key("room", room.id), room);
+        await this.redis.sadd(this.key("homestay_rooms", homestay.id), room.id);
+      }
+    }
+  }
+
+  private roundPrice(value: number) {
+    return Math.max(200000, Math.round(value / 10000) * 10000);
   }
 
   private async seedDemoDataIfEmpty() {
