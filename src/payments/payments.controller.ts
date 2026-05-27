@@ -58,10 +58,11 @@ export class PaymentsController {
   private async processWebhook(body: Record<string, unknown>) {
     try {
       const verified = await this.provider.verifyCallback(body);
-      const booking = await this.store.assertCanAccessBooking(
-        { id: "system", name: "Payment webhook", email: "webhook@system.local", role: "ADMIN", banned: false },
-        verified.bookingId
-      );
+      const systemUser = { id: "system", name: "Payment webhook", email: "webhook@system.local", role: "ADMIN" as const, banned: false };
+      const booking = verified.bookingId
+        ? await this.store.assertCanAccessBooking(systemUser, verified.bookingId)
+        : await this.store.bookingByPaymentProviderRef(verified.provider, verified.providerRef);
+      if (!booking) throw new Error(`No booking matched ApiPay webhook providerRef=${verified.providerRef}`);
       const payment = await this.store.upsertPayment(booking.id, {
         provider: verified.provider,
         providerRef: verified.providerRef,
@@ -69,6 +70,7 @@ export class PaymentsController {
         amount: booking.grandTotal
       });
       await this.events.publish("payment.updated", { bookingId: booking.id, status: payment.status });
+      this.logger.log(`ApiPay webhook applied booking=${booking.id} status=${payment.status} providerRef=${verified.providerRef}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`ApiPay webhook processing failed: ${message}`);

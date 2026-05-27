@@ -14,7 +14,7 @@ export interface PaymentIntent {
 export interface PaymentProvider {
   createPaymentIntent(input: { bookingId: string; amount: number }): Promise<PaymentIntent>;
   registerWebhook(): Promise<Record<string, unknown>>;
-  verifyCallback(payload: Record<string, unknown>): Promise<{ bookingId: string; status: PaymentStatus; providerRef: string; provider: string }>;
+  verifyCallback(payload: Record<string, unknown>): Promise<{ bookingId?: string; status: PaymentStatus; providerRef: string; provider: string }>;
   getStatus(providerRef: string): Promise<PaymentStatus>;
 }
 
@@ -50,7 +50,7 @@ export class MockApiPayProvider implements PaymentProvider {
 
   async verifyCallback(
     _payload: Record<string, unknown>,
-  ): Promise<{ bookingId: string; status: PaymentStatus; providerRef: string; provider: string }> {
+  ): Promise<{ bookingId?: string; status: PaymentStatus; providerRef: string; provider: string }> {
     throw new BadRequestException("Payment callbacks are disabled while PAYMENT_PROVIDER=mock-apipay");
   }
 
@@ -110,18 +110,29 @@ export class ApiPayHttpProvider implements PaymentProvider {
 
   async verifyCallback(payload: Record<string, unknown>) {
     const data = (payload.data && typeof payload.data === "object" ? payload.data : payload) as Record<string, unknown>;
+    const paymentRequest = (data.paymentRequest && typeof data.paymentRequest === "object" ? data.paymentRequest : payload.paymentRequest) as Record<string, unknown> | undefined;
     const event = String(payload.event ?? "").toLowerCase();
     const type = String(data.type ?? "").toUpperCase();
-    const status = event === "transaction.in" || type === "IN" ? "PAID" : parseCallbackStatus(data.status ?? payload.status ?? "PENDING");
-    const bookingId = String(data.content ?? data.referenceCode ?? payload.bookingId ?? payload.orderId ?? "").trim();
-    if (!bookingId) {
-      throw new BadRequestException("ApiPay webhook is missing booking reference");
-    }
+    const rawStatus = data.status ?? payload.status ?? data.paymentRequestStatus ?? paymentRequest?.status;
+    const status = event === "transaction.in" || type === "IN" ? "PAID" : parseCallbackStatus(rawStatus ?? "PENDING");
+    const bookingId = this.extractBookingId(
+      data.content,
+      data.referenceCode,
+      data.description,
+      data.note,
+      payload.bookingId,
+      payload.orderId,
+      payload.content,
+      paymentRequest?.content,
+      paymentRequest?.referenceCode
+    );
+    const providerRef = String(data.paymentRequestId ?? paymentRequest?.id ?? payload.providerRef ?? payload.paymentRequestId ?? payload.paymentId ?? payload.id ?? data.transactionId ?? bookingId ?? "").trim();
+    if (!bookingId && !providerRef) throw new BadRequestException("ApiPay webhook is missing booking or payment reference");
 
     return {
       bookingId,
       status,
-      providerRef: String(data.transactionId ?? data.paymentRequestId ?? payload.providerRef ?? payload.paymentId ?? payload.id ?? bookingId),
+      providerRef,
       provider: "apipay"
     };
   }
@@ -171,6 +182,15 @@ export class ApiPayHttpProvider implements PaymentProvider {
   private paymentRequestPath() {
     const configured = this.config.get<string>("APIPAY_CREATE_PAYMENT_PATH") ?? "/v1/client/payment-requests";
     return configured.replace(/\/create\/?$/, "");
+  }
+
+  private extractBookingId(...values: unknown[]) {
+    for (const value of values) {
+      const text = String(value ?? "").trim();
+      const match = text.match(/bk-[a-zA-Z0-9-]+/);
+      if (match?.[0]) return match[0];
+    }
+    return undefined;
   }
 
   private credentials() {

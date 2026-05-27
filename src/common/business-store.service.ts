@@ -645,6 +645,20 @@ export class BusinessStoreService implements OnModuleInit {
     return row;
   }
 
+  async bookingByPaymentProviderRef(provider: string, providerRef: string) {
+    const payment = await this.redis.get<Payment>(this.key("payment_provider", `${provider}:${providerRef}`));
+    if (payment) {
+      const booking = await this.get<BookingRecord>("booking", payment.bookingId);
+      return booking ? this.mapBooking(booking) : null;
+    }
+    const bookings = await this.all<BookingRecord>("idx:bookings", "booking");
+    for (const row of bookings) {
+      const candidate = await this.redis.get<Payment>(this.key("payment_booking", row.id));
+      if (candidate?.provider === provider && candidate.providerRef === providerRef) return this.mapBooking(row);
+    }
+    return null;
+  }
+
   async setServiceOrderStatus(bookingId: string, serviceOrderId: string, status: BookingService["status"]) {
     if (status !== "PREPARING" && status !== "SERVED") throw new BadRequestException("Invalid service order status");
     const serviceOrder = await this.require<BookingService>("booking_service", serviceOrderId, "Booking service not found");
@@ -907,6 +921,9 @@ export class BusinessStoreService implements OnModuleInit {
   private async savePayment(payment: Payment) {
     await this.redis.set(this.key("payment", payment.id), payment);
     await this.redis.set(this.key("payment_booking", payment.bookingId), payment);
+    if (payment.provider && payment.providerRef) {
+      await this.redis.set(this.key("payment_provider", `${payment.provider}:${payment.providerRef}`), payment);
+    }
   }
 
   private async saveBookingService(service: BookingService) {
