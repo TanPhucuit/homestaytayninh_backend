@@ -1612,7 +1612,10 @@ export class BusinessStoreService implements OnModuleInit {
       { id: `bk-demo-${suffix}-cancelled`, homestayId: "hs-toa-thanh", roomId: "room-demo-toa-thanh", guestCount: 2, checkIn: "2030-03-01", checkOut: "2030-03-03", status: "CANCELLED", roomTotal: 780000, paymentStatus: "CANCELLED" }
     ];
     for (const item of templates) {
-      if (await this.redis.exists(this.key("booking", item.id))) continue;
+      if (await this.redis.exists(this.key("booking", item.id))) {
+        await this.ensureDemoPaymentQr(item.id);
+        continue;
+      }
       const serviceTotal = item.service ? item.service.quantity * item.service.unitPrice : 0;
       const taxTotal = Math.round((item.roomTotal + serviceTotal) * 0.1);
       const booking: BookingRecord = {
@@ -1654,8 +1657,20 @@ export class BusinessStoreService implements OnModuleInit {
         providerRef: `mock-${item.id}`,
         status: item.paymentStatus,
         amount: booking.grandTotal,
-        checkoutUrl: item.paymentStatus === "PAID" || item.paymentStatus === "CANCELLED" ? undefined : `https://pay.example.local/${item.id}`
+        checkoutUrl: item.paymentStatus === "PAID" || item.paymentStatus === "CANCELLED" ? undefined : `https://pay.example.local/${item.id}`,
+        qrUrl: item.paymentStatus === "PAID" || item.paymentStatus === "CANCELLED" ? undefined : this.demoQrUrl(`https://pay.example.local/${item.id}`)
       });
     }
+  }
+
+  private async ensureDemoPaymentQr(bookingId: string) {
+    const payment = await this.redis.get<Payment>(this.key("payment_booking", bookingId));
+    if (!payment || payment.status === "PAID" || payment.status === "CANCELLED" || payment.qrUrl) return;
+    const paymentLink = payment.checkoutUrl || `https://pay.example.local/${bookingId}`;
+    await this.savePayment({ ...payment, checkoutUrl: payment.checkoutUrl ?? paymentLink, qrUrl: this.demoQrUrl(paymentLink) });
+  }
+
+  private demoQrUrl(value: string) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(value)}`;
   }
 }

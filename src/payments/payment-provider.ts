@@ -7,7 +7,7 @@ export interface PaymentIntent {
   providerRef: string;
   status: PaymentStatus;
   amount: number;
-  checkoutUrl: string;
+  checkoutUrl?: string;
   qrUrl?: string;
 }
 
@@ -39,12 +39,14 @@ function parseCallbackStatus(value: unknown): PaymentStatus {
 
 export class MockApiPayProvider implements PaymentProvider {
   async createPaymentIntent(input: { bookingId: string; amount: number }): Promise<PaymentIntent> {
+    const checkoutUrl = `/payment/result?bookingId=${encodeURIComponent(input.bookingId)}&status=pending`;
     return {
       provider: "mock-apipay",
       providerRef: `mock_${input.bookingId}`,
       status: "PENDING",
       amount: input.amount,
-      checkoutUrl: `/bookings?payment=mock_${input.bookingId}`
+      checkoutUrl,
+      qrUrl: demoQrUrl(checkoutUrl)
     };
   }
 
@@ -93,9 +95,28 @@ export class ApiPayHttpProvider implements PaymentProvider {
 
     const result = this.unwrapData(data);
     const providerRef = String(result.paymentRequestId ?? result.providerRef ?? result.paymentId ?? result.id ?? input.bookingId);
-    const checkoutUrl = String(result.payUrl ?? result.checkoutUrl ?? result.paymentUrl ?? result.url ?? "");
-    if (!checkoutUrl) {
-      throw new Error(`ApiPay did not return a checkout/payment URL. Response keys: ${Object.keys(result).join(", ") || "none"}`);
+    const checkoutUrl = this.firstString(
+      result.payUrl,
+      result.checkoutUrl,
+      result.paymentUrl,
+      result.url,
+      result.shortUrl,
+      result.paymentLink,
+      result.paymentRequestUrl
+    );
+    const qrUrl = this.firstString(
+      result.qrUrl,
+      result.qrURL,
+      result.qrCodeUrl,
+      result.qrCodeURL,
+      result.qrImageUrl,
+      result.qrImage,
+      result.qr,
+      result.vietQrUrl,
+      result.vietQRUrl
+    );
+    if (!checkoutUrl && !qrUrl) {
+      throw new Error(`ApiPay did not return a payment URL or QR. Response keys: ${Object.keys(result).join(", ") || "none"}`);
     }
 
     return {
@@ -104,7 +125,7 @@ export class ApiPayHttpProvider implements PaymentProvider {
       status: normalizePaymentStatus(result.status ?? data.status ?? "PENDING"),
       amount: input.amount,
       checkoutUrl,
-      qrUrl: typeof result.qrUrl === "string" ? result.qrUrl : undefined
+      qrUrl
     };
   }
 
@@ -174,6 +195,14 @@ export class ApiPayHttpProvider implements PaymentProvider {
     return data.data && typeof data.data === "object" ? data.data as Record<string, unknown> : data;
   }
 
+  private firstString(...values: unknown[]) {
+    for (const value of values) {
+      const text = String(value ?? "").trim();
+      if (text) return text;
+    }
+    return undefined;
+  }
+
   private describeApiPayError(status: number, data: Record<string, unknown>) {
     const message = data.message ?? data.error ?? data.errors ?? data;
     return `ApiPay request failed with ${status}: ${JSON.stringify(message)}`;
@@ -207,6 +236,10 @@ export class ApiPayHttpProvider implements PaymentProvider {
     url.searchParams.set("status", "pending");
     return url.toString();
   }
+}
+
+function demoQrUrl(value: string) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(value)}`;
 }
 
 @Injectable()
