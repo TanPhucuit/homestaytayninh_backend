@@ -176,8 +176,7 @@ export class BusinessStoreService implements OnModuleInit {
     const rows = await this.all<HomestayRecord>("idx:homestays", "homestay");
     const visible = rows.filter((row) => {
       if (row.deleted) return false;
-      if (user.role === "ADMIN") return true;
-      if (user.role === "OWNER") return true;
+      if (user.role === "ADMIN" || user.role === "OWNER") return true;
       return false;
     });
     if (user.role === "OWNER_STAFF") {
@@ -470,7 +469,7 @@ export class BusinessStoreService implements OnModuleInit {
       else if (user.role === "CUSTOMER" && booking.customerId === user.id) filtered.push(booking);
       else {
         const homestay = await this.get<HomestayRecord>("homestay", booking.homestayId);
-        if (user.role === "OWNER" && homestay?.ownerId === user.id) filtered.push(booking);
+        if (user.role === "OWNER") filtered.push(booking);
         if (user.role === "OWNER_STAFF" && (await this.redis.smembers(this.key("staff_assignments", user.id))).includes(booking.homestayId)) {
           filtered.push(booking);
         }
@@ -485,7 +484,7 @@ export class BusinessStoreService implements OnModuleInit {
     const allowed =
       user.role === "ADMIN" ||
       (user.role === "CUSTOMER" && row.customerId === user.id) ||
-      (user.role === "OWNER" && homestay.ownerId === user.id) ||
+      user.role === "OWNER" ||
       (user.role === "OWNER_STAFF" && (await this.redis.smembers(this.key("staff_assignments", user.id))).includes(row.homestayId));
     if (!allowed) throw new ForbiddenException("User cannot access this booking");
     return this.mapBooking(row);
@@ -735,6 +734,9 @@ export class BusinessStoreService implements OnModuleInit {
     const target = await this.requireUser(userId);
     if (actor.role === "STAFF" && target.role !== "CUSTOMER") {
       throw new ForbiddenException("Staff can only moderate customer accounts");
+    }
+    if (actor.id === userId && banned) {
+      throw new ForbiddenException("Users cannot ban their own account");
     }
     if (target.role === "ADMIN" && banned && (await this.activeAdminCount()) <= 1) {
       throw new ForbiddenException("Cannot ban the last active administrator");
