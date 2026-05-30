@@ -177,7 +177,7 @@ export class BusinessStoreService implements OnModuleInit {
     const visible = rows.filter((row) => {
       if (row.deleted) return false;
       if (user.role === "ADMIN") return true;
-      if (user.role === "OWNER") return row.ownerId === user.id;
+      if (user.role === "OWNER") return true;
       return false;
     });
     if (user.role === "OWNER_STAFF") {
@@ -195,7 +195,7 @@ export class BusinessStoreService implements OnModuleInit {
 
   async assertCanManageHomestay(user: AuthenticatedUser, homestayId: string) {
     const homestay = await this.getHomestay(homestayId);
-    if (user.role !== "ADMIN" && (user.role !== "OWNER" || homestay.ownerId !== user.id)) {
+    if (user.role !== "ADMIN" && user.role !== "OWNER") {
       throw new ForbiddenException("User cannot manage this homestay");
     }
     return homestay;
