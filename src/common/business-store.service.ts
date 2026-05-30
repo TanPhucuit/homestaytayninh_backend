@@ -733,8 +733,8 @@ export class BusinessStoreService implements OnModuleInit {
 
   async moderateUser(actor: AuthenticatedUser, userId: string, banned: boolean) {
     const target = await this.requireUser(userId);
-    if (actor.role !== "ADMIN" && target.role === "ADMIN") {
-      throw new ForbiddenException("Staff cannot moderate administrator accounts");
+    if (actor.role === "STAFF" && target.role !== "CUSTOMER") {
+      throw new ForbiddenException("Staff can only moderate customer accounts");
     }
     if (target.role === "ADMIN" && banned && (await this.activeAdminCount()) <= 1) {
       throw new ForbiddenException("Cannot ban the last active administrator");
